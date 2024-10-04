@@ -1,0 +1,7 @@
+{
+    "require": {
+        "twbs/bootstrap": "4.0.0",
+        "xthiago/pdf-version-converter": "dev-master",
+        "symfony/filesystem": "^4.4"
+    }
+}
