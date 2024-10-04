@@ -1,0 +1,1474 @@
+<?php
+defined('BASEPATH') or exit('No direct script access allowed');
+
+require_once(FCPATH . 'assets_tambahan/ghostscript/vendor/autoload.php');
+
+use Xthiago\PDFVersionConverter\Guesser\RegexGuesser;
+use Symfony\Component\Filesystem\Filesystem;
+use Xthiago\PDFVersionConverter\Converter\GhostscriptConverterCommand;
+use Xthiago\PDFVersionConverter\Converter\GhostscriptConverter;
+
+class Pekerjaan_usulan extends MX_Controller
+{
+  public function __construct()
+  {
+    parent::__construct();
+    $this->load->library('template');
+    $CI = &get_instance();
+    $sesi = $this->session->userdata();
+    /* admin sistem */
+    $this->admin_sistem = $this->db->query("SELECT * FROM global.global_admin WHERE admin_nik = '" . $sesi['pegawai_nik'] . "'")->row_array();
+    if (!empty($this->admin_sistem)) {
+      $this->admin_sistemnya = $this->admin_sistem['admin_nik'];
+    } else {
+      $this->admin_sistemnya = '0';
+    }
+    /* admin sistem */
+    /* admin bagian */
+    $this->admin_bagian = $this->db->query("SELECT * FROM global.global_admin_bagian WHERE admin_bagian_nik = '" . $sesi['pegawai_nik'] . "'")->row_array();
+    if (!empty($this->admin_bagian)) {
+      $this->admin_bagiannya = $this->admin_bagian['admin_bagian_nik'];
+      $this->id_bagiannya = $this->admin_bagian['id_bagian'];
+    } else {
+      $this->admin_bagiannya = '0';
+      $this->id_bagiannya = '0';
+    }
+    /* admin bagian */
+    if (empty($sesi['pegawai_nik'])) {
+      redirect('tampilan');
+    }
+    $this->load->model('M_pekerjaan');
+    $this->load->model('master/M_user');
+    $this->load->model('master/M_klasifikasi_pekerjaan');
+    $this->load->model('master/M_kategori_pekerjaan');
+    $this->load->model('master/M_departemen');
+    $this->load->model('master/M_bagian');
+    $this->load->library('mailer');
+    $this->load->library('mailer_api');
+  }
+
+  /* INDEX */
+  /* Index Pekerjaan Usulan */
+  public function index()
+  {
+    $data = $this->session->userdata();
+    $this->template->template_master('project/pekerjaan_usulan', $data);
+  }
+  /* Index Pekerjaan Usulan */
+
+
+  /* Index Pekerjaan Detail */
+  public function detailPekerjaan()
+  {
+    $param['pekerjaan_id'] = preg_replace("/[^0-9^a-z^A-Z]/", "", $this->input->get_post('pekerjaan_id'));
+    $data = array();
+    $data = $this->session->userdata();
+    $data['pekerjaan'] = $this->M_pekerjaan->getPekerjaan($param);
+    $this->load->view('tampilan/header', $data);
+    $this->load->view('tampilan/sidebar', $data);
+    $this->load->view('project/detail_pekerjaan_usulan', $data);
+    $this->load->view('tampilan/footer', $data);
+  }
+  /* Index Pekerjaan Detail */
+
+  /*Index Dokumen Aksi*/
+  public function dokumenAksi()
+  {
+    $param['pekerjaan_dokumen_id'] = $this->input->get('pekerjaan_dokumen_id');
+    $data = $this->session->userdata();
+
+    $transmital = $this->input->get('transmital');
+    $data['dokumen'] = ($transmital == 'y') ? $this->M_pekerjaan->getDokumenAksiTransmital($param) : $this->M_pekerjaan->getDokumenAksi($param);
+
+    $this->load->view('tampilan/header', $data);
+    $this->load->view('tampilan/sidebar', $data);
+    $this->load->view('project/dokumen_aksi', $data);
+    $this->load->view('tampilan/footer', $data);
+  }
+  /*Index Dokumen Aksi*/
+  /* INDEX */
+
+
+  public function cekRevisi()
+  {
+    $sql_proses = $this->db->query("SELECT * FROM dec.dec_pekerjaan_dokumen WHERE pekerjaan_dokumen_revisi = null AND id_pekerjaan = '" . $_GET['id_pekerjaan'] . "'");
+    $data_proses = $sql_proses->row_array();
+    // $sql_proses = $this->db->query("SELECT bagian_nama FROM global.global_bagian_detail a LEFT JOIN global.global_bagian b on b.bagian_id = a.id_bagian WHERE id_pegawai = '".$data_proses['id_user']."'");
+    // $data_proses = $sql_proses->row_array();
+
+    echo '<pre>';
+    echo 'x';
+    print_r($data_proses);
+    echo '</pre>';
+    die();
+  }
+
+  public function pekerjaan_warning()
+  {
+    $session = $this->session->userdata();
+    $dataLoadPekerjaan = $this->db->query("SELECT * FROM dec.dec_pekerjaan b LEFT JOIN global.global_pegawai c ON c.pegawai_nik = b.pic LEFT JOIN global.global_klasifikasi_pekerjaan d ON d.klasifikasi_pekerjaan_id = b.id_klasifikasi_pekerjaan WHERE (CAST(pekerjaan_status as INT) < '8' AND pekerjaan_status!= '-') AND c.pegawai_id_bag = '" . $session['pegawai_id_bag'] . "' AND klasifikasi_pekerjaan_rkap = 'n'")->result_array();
+    echo json_encode($dataLoadPekerjaan);
+  }
+
+  /* PEKERJAAN USULAN */
+  /* GET */
+  /* Get Pekerjaan Ususlan */
+  public function getPekerjaanUsulan()
+  {
+    if ($this->input->get('id_user')) {
+      $session = $this->db->get_where('global.global_pegawai', ['pegawai_nik' => $this->input->get('id_user')])->row_array();
+    } else {
+      $session = $this->session->userdata();
+    }
+
+    $param_detail['pekerjaan_id'] = $this->input->get('pekerjaan_id');
+    $split = explode(',', $this->input->get('pekerjaan_status'));
+    $param['pekerjaan_status'] = $split;
+    $param['pekerjaan_id'] = $this->input->get('pekerjaan_id');
+    $param['id_user'] = $this->input->get_post('id_user_cari');
+    $param['klasifikasi_pekerjaan_id'] = $this->input->get_post('klasifikasi_pekerjaan_id');
+    $param['klasifikasi_pekerjaan_id_non_rkap'] = $this->input->get_post('klasifikasi_pekerjaan_id_non_rkap');
+    $param['tahun'] = $this->input->get_post('tahun');
+    if (($split[0] >= 8 && $split[0] <= 10 && $this->input->get('pekerjaan_jenis') == 'IFI') || ($split[0] >= 11 && $split[0] <= 13)) {
+      $param['pekerjaan_jenis'] = strtolower($this->input->get('pekerjaan_jenis'));
+    } else if ($split[0] >= 8 && $split[0] <= '10' && $this->input->get('pekerjaan_jenis') == 'IFA') {
+      $param['pekerjaan_jenis_ifa'] = '1';
+    }
+
+    $sql_pic = $this->db->query("SELECT count(*) as total FROM dec.dec_pekerjaan WHERE pic='" . $session['pegawai_nik'] . "'");
+    $data_pic = $sql_pic->row_array();
+
+    if ($session['pegawai_nik'] != $this->admin_sistemnya) {
+      if ($this->id_bagiannya != '0') {
+        $param['id_bagian'] = $this->id_bagiannya;
+        $param['pic_bagian'] = $session['pegawai_nik'];
+      } else if ($data_pic['total'] > 0) {
+        $param['user_pic'] = $session['pegawai_nik'];
+      } else {
+        $param['user_disposisi'] = $session['pegawai_nik'];
+      }
+    }
+
+
+    $data = array();
+
+    if ($param_detail['pekerjaan_id'] != null) {
+      $data = $this->M_pekerjaan->getPekerjaan($param_detail);
+      echo json_encode($data);
+    } else {
+      if (empty($param['id_user'])) {
+        $sql_pekerjaan = $this->M_pekerjaan->getPekerjaan($param);
+
+        // echo $this->db->last_query();
+
+
+        foreach ($sql_pekerjaan as $value) {
+          foreach ($value as $key => $val) {
+            $isi[$key] = $val;
+          }
+          $sql_total = $this->db->query("SELECT COUNT(*) AS total FROM dec.dec_pekerjaan_disposisi WHERE pekerjaan_disposisi_status = '" . $value['pekerjaan_status'] . "' AND id_pekerjaan = '" . $value['pekerjaan_id'] . "' AND  id_user = '" . $session['pegawai_nik'] . "' and is_aktif = 'y' ");
+          $isi_total = $sql_total->row_array();
+
+          $sql_proses = $this->db->query("SELECT * FROM dec.dec_pekerjaan_disposisi WHERE pekerjaan_disposisi_status = '$value[pekerjaan_status]' AND id_pekerjaan = '$value[pekerjaan_id]' AND  id_user = '$session[pegawai_nik]' ORDER BY pekerjaan_disposisi_status DESC");
+          $data_proses = $sql_proses->row_array();
+
+          $proses_perencana_ifc = $this->db->query("SELECT * FROM dec.dec_pekerjaan_disposisi WHERE pekerjaan_disposisi_status = '11' AND id_user='" . $session['pegawai_nik'] . "' AND id_pekerjaan='" . $value['pekerjaan_id'] . "' AND is_proses='y'")->num_rows();
+          $proses_avp = $this->db->query("SELECT * FROM dec.dec_pekerjaan_disposisi WHERE pekerjaan_disposisi_status = '4' AND id_pekerjaan='" . $value['pekerjaan_id'] . "' AND id_user = '" . $session['pegawai_nik'] . "' AND is_proses = 'y'")->num_rows();
+          $proses_avp_belum = $this->db->query("SELECT * FROM dec.dec_pekerjaan_disposisi WHERE pekerjaan_disposisi_status = '4' AND id_pekerjaan='" . $value['pekerjaan_id'] . "' AND is_proses is  null")->num_rows();
+          $koor_baru = $this->db->query("SELECT * FROM dec.dec_pekerjaan_disposisi WHERE pekerjaan_disposisi_status = '4' AND id_pekerjaan = '" . $value['pekerjaan_id'] . "' AND id_koor_baru is not null")->num_rows();
+
+          if ($proses_avp_belum >= '1') {
+            $data_belum = $this->db->query("SELECT * FROM dec.dec_pekerjaan_disposisi WHERE is_proses is null AND pekerjaan_disposisi_status = '4' AND id_pekerjaan='" . $value['pekerjaan_id'] . "'")->row_array();
+            $bagian = $this->db->query("SELECT * FROM global.global_bagian a LEFT JOIN global.global_bagian_detail b ON b.id_bagian  = a.bagian_id WHERE id_pegawai = '" . $data_belum['id_user'] . "'")->row_array();
+            $bagiannya = ($bagian) ? $bagian['bagian_nama'] : '';
+          }
+
+          $sql_allow = $this->db->query("SELECT COUNT(*) AS total FROM dec.dec_pekerjaan_disposisi WHERE id_pekerjaan = '" . $value['pekerjaan_id'] . "' AND  id_user = '" . $session['pegawai_nik'] . "' and is_aktif = 'y' ");
+          $isi_allow = $sql_allow->row_array();
+
+          $sql_ajuan_extend = $this->db->query("SELECT * FROM dec.dec_pekerjaan_extend WHERE id_pekerjaan = '" . $value['pekerjaan_id'] . "' AND extend_status='0'");
+          $isi_ajuan_extend = $sql_ajuan_extend->row_array();
+
+          $sql_extend = $this->db->query("SELECT * FROM dec.dec_pekerjaan_extend WHERE id_pekerjaan = '" . $value['pekerjaan_id'] . "' AND extend_status='1'");
+          $isi_extend = $sql_extend->row_array();
+
+          $isi_vp = $this->db->get_where('dec.dec_pekerjaan_disposisi', ['id_pekerjaan' => $value['pekerjaan_id'], 'pekerjaan_disposisi_status' => '3', 'id_user' => $session['pegawai_nik']])->num_rows();
+
+          $isi_avp = $this->db->get_where('dec.dec_pekerjaan_disposisi', ['id_pekerjaan' => $value['pekerjaan_id'], 'pekerjaan_disposisi_status' => '4', 'id_user' => $session['pegawai_nik']])->num_rows();
+          /* Tambahan */
+
+          $dokumen_revisi = $this->db->query("SELECT count(*) as total FROM dec.dec_pekerjaan_dokumen WHERE id_pekerjaan = '" . $value['pekerjaan_id'] . "'  AND is_lama!='y' AND (pekerjaan_dokumen_revisi !='' OR pekerjaan_dokumen_revisi != null) and pekerjaan_dokumen_status = '0' ")->row_array();
+          $dokumen_revisi_baru = $this->db->query("SELECT count(*) as total FROM dec.dec_pekerjaan_dokumen WHERE id_pekerjaan = '" . $value['pekerjaan_id'] . "'  AND is_lama!='n' AND (pekerjaan_dokumen_revisi !='' OR pekerjaan_dokumen_revisi != null) and pekerjaan_dokumen_status = '0' ")->row_array();
+          $dokumen_revisi_berjalan = $this->db->query("SELECT count(*) as total FROM dec.dec_pekerjaan_dokumen WHERE who_create = '" . $session['pegawai_nama'] . "' AND id_pekerjaan = '" . $value['pekerjaan_id'] . "'  AND is_lama!='y' AND  pekerjaan_dokumen_status = '0' and (pekerjaan_dokumen_revisi ='' OR pekerjaan_dokumen_revisi is null) ")->row_array();
+          $dokumen_revisi_berjalan_lama = $this->db->query("SELECT count(*) as total FROM dec.dec_pekerjaan_dokumen WHERE who_create = '" . $session['pegawai_nama'] . "' AND id_pekerjaan = '" . $value['pekerjaan_id'] . "'  AND is_lama ='y' AND  pekerjaan_dokumen_status = '2' and (pekerjaan_dokumen_revisi ='' OR pekerjaan_dokumen_revisi is null) ")->row_array();
+          $dokumen_revisi_berjalan_baru = $this->db->query("SELECT count(*) as total FROM dec.dec_pekerjaan_dokumen WHERE who_create = '" . $session['pegawai_nama'] . "' AND id_pekerjaan = '" . $value['pekerjaan_id'] . "'  AND is_lama !='y' AND  pekerjaan_dokumen_status = '2' and (pekerjaan_dokumen_revisi ='' OR pekerjaan_dokumen_revisi is null) ")->row_array();
+
+          $revisi_dokumen = ($dokumen_revisi['total'] > 0) ? '1' : 0;
+          $revisi_dokumen_lama = $dokumen_revisi['total'];
+          $revisi_dokumen_baru = $dokumen_revisi_baru['total'];
+          $revisi_dokumen_berjalan = $dokumen_revisi_berjalan['total'] + $dokumen_revisi['total'];
+          $revisi_dokumen_berjalan_lama = $dokumen_revisi_berjalan_lama['total'] + $dokumen_revisi['total'];
+          $revisi_dokumen_berjalan_baru = $dokumen_revisi_berjalan_baru['total'] + $dokumen_revisi_baru['total'];
+
+          $isi['extend_ajuan_tanggal'] = (!empty($isi_ajuan_extend)) ? $isi_ajuan_extend['extend_tanggal'] : '';
+          $isi['extend_ajuan_status'] = (!empty($isi_ajuan_extend)) ? $isi_ajuan_extend['extend_status'] : '';
+
+          $isi['extend_tanggal'] = (!empty($isi_extend)) ? $isi_extend['extend_tanggal'] : '';
+          $isi['extend_status'] = (!empty($isi_extend)) ? $isi_extend['extend_status'] : '';
+
+          $isi['is_allow'] = ($isi_allow['total'] > 0 || $session['pegawai_nik'] == $this->admin_sistemnya) ? 'y' : 'n';
+
+          $isi['milik'] = ($isi_total['total'] > 0 || ($value['pic'] == $session['pegawai_nik'] && ($value['pekerjaan_status'] == '0' || $value['pekerjaan_status'] == '-'))) ? 'y' : 'n';
+
+          $isi['is_proses'] = ($isi_total['total'] > 0 && $data_proses['is_proses']) ? $data_proses['is_proses'] : null;
+          $isi['is_disposisi_aktif'] = ($isi_total['total'] > 0 && $data_proses['is_aktif'] == 'y') ? 'y' : 'n';
+
+          $isi['revisi_dokumen'] = $revisi_dokumen;
+          $isi['revisi_dokumen_lama'] = $revisi_dokumen_lama;
+          $isi['revisi_dokumen_baru'] = $revisi_dokumen_baru;
+          $isi['revisi_dokumen_berjalan'] = $revisi_dokumen_berjalan;
+          $isi['revisi_dokumen_berjalan_lama'] = $revisi_dokumen_berjalan_lama;
+          $isi['revisi_dokumen_berjalan_baru'] = $revisi_dokumen_berjalan_baru;
+          
+          $isi['proses_perencana_ifc'] = $proses_perencana_ifc;
+          $isi['proses_avp'] = $proses_avp;
+          $isi['proses_avp_belum'] = $proses_avp_belum;
+          $isi['bagian_nama'] = ($proses_avp_belum >= '1') ? $bagiannya : '';
+          $isi['koor_baru'] = $koor_baru;
+          $isi['is_vp'] = ($isi_vp > 0) ? 'y' : 'n';
+          $isi['is_avp'] = ($isi_avp > 0) ? 'y' : 'n';
+
+          /* tambahan */
+
+          array_push($data, $isi);
+        }
+        echo json_encode($data);
+      } else {
+        foreach ($this->M_pekerjaan->getPekerjaanDispo($param) as $value) {
+          foreach ($value as $key => $val) {
+            $isi[$key] = $val;
+          }
+          $sql_total = $this->db->query("SELECT COUNT(*) AS total FROM dec.dec_pekerjaan_disposisi WHERE pekerjaan_disposisi_status = '" . $value['pekerjaan_status'] . "' AND id_pekerjaan = '" . $value['pekerjaan_id'] . "' AND  id_user = '" . $session['pegawai_nik'] . "' and is_aktif = 'y' ");
+          $isi_total = $sql_total->row_array();
+
+          $sql_proses = $this->db->query("SELECT * FROM dec.dec_pekerjaan_disposisi WHERE pekerjaan_disposisi_status = '$value[pekerjaan_status]' AND id_pekerjaan = '$value[pekerjaan_id]' AND  id_user = '$session[pegawai_nik]' ORDER BY pekerjaan_disposisi_status DESC");
+          $data_proses = $sql_proses->row_array();
+
+          $proses_perencana_ifc = $this->db->query("SELECT * FROM dec.dec_pekerjaan_disposisi WHERE pekerjaan_disposisi_status = '11' AND id_user='" . $session['pegawai_nik'] . "' AND id_pekerjaan='" . $value['pekerjaan_id'] . "' AND is_proses='y'")->num_rows();
+          $proses_avp = $this->db->query("SELECT * FROM dec.dec_pekerjaan_disposisi WHERE pekerjaan_disposisi_status = '4' AND id_pekerjaan='" . $value['pekerjaan_id'] . "' AND id_user = '" . $session['pegawai_nik'] . "' AND is_proses = 'y'")->num_rows();
+          $proses_avp_belum = $this->db->query("SELECT * FROM dec.dec_pekerjaan_disposisi WHERE pekerjaan_disposisi_status = '4' AND id_pekerjaan='" . $value['pekerjaan_id'] . "' AND is_proses is  null")->num_rows();
+          $koor_baru = $this->db->query("SELECT * FROM dec.dec_pekerjaan_disposisi WHERE pekerjaan_disposisi_status = '4' AND id_pekerjaan = '" . $value['pekerjaan_id'] . "' AND id_koor_baru is not null")->num_rows();
+
+          if ($proses_avp_belum == '1') {
+            $data_belum = $this->db->query("SELECT * FROM dec.dec_pekerjaan_disposisi WHERE is_proses is null AND pekerjaan_disposisi_status = '4' AND id_pekerjaan='" . $value['pekerjaan_id'] . "'")->row_array();
+            $bagian = $this->db->query("SELECT * FROM global.global_bagian a LEFT JOIN global.global_bagian_detail b ON b.id_bagian  = a.bagian_id WHERE id_pegawai = '" . $data_belum['id_user'] . "'")->row_array();
+            $bagiannya = ($bagian) ? $bagian['bagian_nama'] : '';
+          }
+
+          $sql_allow = $this->db->query("SELECT COUNT(*) AS total FROM dec.dec_pekerjaan_disposisi WHERE id_pekerjaan = '" . $value['pekerjaan_id'] . "' AND  id_user = '" . $session['pegawai_nik'] . "' and is_aktif = 'y' ");
+          $isi_allow = $sql_allow->row_array();
+
+          $sql_ajuan_extend = $this->db->query("SELECT * FROM dec.dec_pekerjaan_extend WHERE id_pekerjaan = '" . $value['pekerjaan_id'] . "' AND extend_status='0'");
+          $isi_ajuan_extend = $sql_ajuan_extend->row_array();
+
+          $sql_extend = $this->db->query("SELECT * FROM dec.dec_pekerjaan_extend WHERE id_pekerjaan = '" . $value['pekerjaan_id'] . "' AND extend_status='1'");
+          $isi_extend = $sql_extend->row_array();
+
+          $isi_vp = $this->db->get_where('dec.dec_pekerjaan_disposisi', ['id_pekerjaan' => $value['pekerjaan_id'], 'pekerjaan_disposisi_status' => '3', 'id_user' => $session['pegawai_nik']])->num_rows();
+
+          $isi_avp = $this->db->get_where('dec.dec_pekerjaan_disposisi', ['id_pekerjaan' => $value['pekerjaan_id'], 'pekerjaan_disposisi_status' => '4', 'id_user' => $session['pegawai_nik']])->num_rows();
+          /* Tambahan */
+
+          $isi['extend_ajuan_tanggal'] = (!empty($isi_ajuan_extend)) ? $isi_ajuan_extend['extend_tanggal'] : '';
+          $isi['extend_ajuan_status'] = (!empty($isi_ajuan_extend)) ? $isi_ajuan_extend['extend_status'] : '';
+
+          $isi['extend_tanggal'] = (!empty($isi_extend)) ? $isi_extend['extend_tanggal'] : '';
+          $isi['extend_status'] = (!empty($isi_extend)) ? $isi_extend['extend_status'] : '';
+
+          $isi['is_allow'] = ($isi_allow['total'] > 0 || $session['pegawai_nik'] == $this->admin_sistemnya) ? 'y' : 'n';
+
+          $isi['milik'] = ($isi_total['total'] > 0 || ($value['pic'] == $session['pegawai_nik'] && ($value['pekerjaan_status'] == '0' || $value['pekerjaan_status'] == '-'))) ? 'y' : 'n';
+
+          $isi['is_proses'] = ($isi_total['total'] > 0 && $data_proses['is_proses']) ? $data_proses['is_proses'] : null;
+          $isi['is_disposisi_aktif'] = ($isi_total['total'] > 0 && $data_proses['is_aktif'] == 'y') ? 'y' : 'n';
+
+          $isi['proses_perencana_ifc'] = $proses_perencana_ifc;
+          $isi['proses_avp'] = $proses_avp;
+          $isi['proses_avp_belum'] = $proses_avp_belum;
+          $isi['bagian_nama'] = ($proses_avp_belum == '1') ? $bagiannya : '';
+          $isi['koor_baru'] = $koor_baru;
+          $isi['is_vp'] = ($isi_vp > 0) ? 'y' : 'n';
+          $isi['is_avp'] = ($isi_avp > 0) ? 'y' : 'n';
+          /* tambahan */
+
+          array_push($data, $isi);
+        }
+        echo json_encode($data);
+      }
+    }
+  }
+  /* Get Pekerjaan Ususlan */
+
+
+  /* Get Pekerjaan Dokumen */
+  public function getPekerjaanDokumen()
+  {
+    $param = array();
+
+    if ($this->input->get('id_pekerjaan')) $param['id_pekerjaan'] = $this->input->get('id_pekerjaan');
+    $param['pekerjaan_dokumen_awal'] = 'y';
+
+    $data = $this->M_pekerjaan->getPekerjaanDokumen($param);
+
+    echo json_encode($data);
+  }
+  /* Get Pekerjaan Dokumen */
+
+  /* Get Pekerjaan Dokumen */
+  public function getTemplatePekerjaan()
+  {
+    $param = array();
+    if ($this->input->get_post('q')) $param['nama'] = $this->input->get_post('q');
+    if ($this->input->get_post('is_hps')) $param['pekerjaan_template_id'] = '142';;
+
+    $data = $this->M_pekerjaan->getTemplatePekerjaan($param);
+    echo json_encode($data);
+  }
+  /* Get Pekerjaan Dokumen */
+
+  /* Get Pekerjaan Dokumen Jenis */
+  public function getPekerjaanDokumenJenis()
+  {
+    if ($this->input->get_post('is_hps')) {
+      $jenis[0]['pekerjaan_dokumen_jenis'] = 'Dokumen';
+    } else {
+      $jenis[0]['pekerjaan_dokumen_jenis'] = 'Gambar';
+      $jenis[1]['pekerjaan_dokumen_jenis'] = 'Dokumen';
+    }
+
+    echo json_encode($jenis);
+  }
+  /* Get Pekerjaan Dokumen Jenis */
+
+  /* Get Pekerjaan Dokumen Kertas */
+  public function getPekerjaanDokumenKertas()
+  {
+    if ($this->input->get_post('is_hps')) {
+      $kertas[0]['pekerjaan_dokumen_kertas'] = 'A4';
+    } else {
+      $kertas[0]['pekerjaan_dokumen_kertas'] = 'A3';
+      $kertas[1]['pekerjaan_dokumen_kertas'] = 'A4';
+    }
+
+    echo json_encode($kertas);
+  }
+
+  /* Get Pekerjaan Dokumen Kertas */
+  public function getPekerjaanDokumenOrientasi()
+  {
+    if ($this->input->get_post('is_hps')) {
+      $orientasi[0]['pekerjaan_dokumen_orientasi'] = 'Potrait';
+    } else {
+      $orientasi[0]['pekerjaan_dokumen_orientasi'] = 'Potrait';
+      $orientasi[1]['pekerjaan_dokumen_orientasi'] = 'Landscape';
+    }
+    echo json_encode($orientasi);
+  }
+  /* Get Pekerjaan Dokumen Kertas */
+
+  /* Get Bidang */
+  public function getBidang()
+  {
+    $param = array();
+    if ($this->input->post('q')) $param['nama'] = $this->input->post('q');
+
+    $data = $this->M_pekerjaan->getBidang($param);
+
+    echo json_encode($data);
+  }
+  /* Get Bidang */
+
+  /* Get Urutan Proyek */
+  public function getUrutanProyek()
+  {
+    $param = array();
+    if ($this->input->post('q')) $param['nama'] = $this->input->post('q');
+
+    $data = $this->M_pekerjaan->getUrutanProyek($param);
+    echo json_encode($data);
+  }
+  /* Get Urutan Proyek */
+
+  /* Get Section Are */
+  public function getSectionArea()
+  {
+    $param = array();
+    if ($this->input->post('q')) $param['nama'] = $this->input->post('q');
+
+    $data = $this->M_pekerjaan->getSectionArea($param);
+    echo json_encode($data);
+  }
+  /* Get Section Are */
+  /* GET */
+
+
+  /*CC*/
+  public function getDokumenCC()
+  {
+    $param['pegawai_nama'] = $this->input->get_post('q');
+    echo json_encode($this->M_pekerjaan->getUserStaf($param));
+  }
+  /*  CC*/
+
+
+  /* PROSES */
+  /* Pekerjaan Dreft */
+  public function insertPekerjaan()
+  {
+    if ($this->input->get('id_user')) {
+      $isi = $this->db->query("SELECT * FROM global.global_pegawai WHERE pegawai_nik = '" . $this->input->get('id_user') . "'")->row_array();
+    } else {
+      $isi = $this->session->userdata();
+    }
+
+    $pekerjaan_status = '0';
+
+    $data['pekerjaan_id'] = anti_inject($this->input->post('pekerjaan_id'));
+    $data['pekerjaan_waktu'] = date('Y-m-d', strtotime($this->input->post('pekerjaan_waktu')));
+    $data['pekerjaan_waktu_akhir'] = date('Y-m-d', strtotime($this->input->post('pekerjaan_waktu_akhir')));
+    $data['pekerjaan_judul'] = anti_inject($this->input->post('pekerjaan_judul'));
+    $data['id_klasifikasi_pekerjaan'] = anti_inject($this->input->post('id_klasifikasi_pekerjaan'));
+    $data['pekerjaan_deskripsi'] = $this->input->post('pekerjaan_deskripsi');
+    $data['pic'] = anti_inject($isi['pegawai_nik']);
+    $data['pic_no_telp'] = anti_inject($this->input->post('pic_no_telp'));
+    $data['pekerjaan_status'] = anti_inject($pekerjaan_status);
+    $data['id_pekerjaan_disposisi'] = anti_inject($this->input->post('id_pekerjaan_disposisi'));
+    $data['pekerjaan_tahun'] = $this->input->post('pekerjaan_tahun');
+    $data['pekerjaan_reviewer'] = $this->input->post('reviewer');
+    $data['pekerjaan_approver'] = $this->input->post('approver');
+    $data['pekerjaan_referensi_unit_kerja'] = $this->input->get_post('ref_unit_kerja');
+
+    $sql_pekerjaan = $this->db->query("SELECT count(*) as total FROM dec.dec_pekerjaan WHERE pekerjaan_id = '" . anti_inject($this->input->get_post('pekerjaan_id')) . "'");
+    $data_pekerjaan = $sql_pekerjaan->row_array();
+    if ($data_pekerjaan['total'] < 1) {
+      $this->M_pekerjaan->insertPekerjaan($data);
+    }
+
+    dblog('I',  $data['pekerjaan_id'], 'Pekerjaan Tersimpan di Draft', $isi['pegawai_nik']);
+
+    if ($this->input->get_post('cc_id')) {
+      $user = $this->input->get_post('cc_id');
+      $user_implode = implode("','", $user);
+      $cc_not_in = $this->db->query("SELECT * FROM dec.dec_pekerjaan_disposisi WHERE id_user NOT IN ('" . $user_implode . "') AND id_pekerjaan = '" . $pekerjaan_id . "' AND pekerjaan_disposisi_status = '8' AND is_cc= 'y' ")->result_array();
+        foreach ($cc_not_in as $value_not_in) {
+          $data_cc = $this->db->get_where('global.global_pegawai', array('pegawai_nik' => $value_not_in['id_user']))->row_array();
+          dblog('I',  $pekerjaan_id, '' . $data_cc['pegawai_nama'] . ' Telah Dihapus Dari CC Non HPS', $isi['pegawai_nik']);
+          $this->db->query("DELETE FROM dec.dec_pekerjaan_disposisi WHERE id_pekerjaan = '" . $pekerjaan_id . "' AND id_user = '" . $value_not_in['id_user'] . "' AND pekerjaan_disposisi_status = '8' AND is_cc = 'y'");
+        }
+        foreach ($user as $key => $value) {
+          $ada_cc = $this->db->query("SELECT count(*) as total FROM dec.dec_pekerjaan_disposisi WHERE id_pekerjaan = '" . $pekerjaan_id . "' AND pekerjaan_disposisi_status = '8' AND id_user = '" . $value . "' AND is_cc ='y'")->row_array();
+          if ($ada_cc['total'] == 0) {
+            $data_disposisi_doc['pekerjaan_disposisi_id'] = create_id();
+            $data_disposisi_doc['pekerjaan_disposisi_waktu'] = date('Y-m-d H:i:s');
+            $data_disposisi_doc['id_user'] = anti_inject($value);
+            $data_disposisi_doc['id_pekerjaan'] = $pekerjaan_id;
+            $data_disposisi_doc['pekerjaan_disposisi_status'] = anti_inject('8');
+            $data_disposisi_doc['id_penanggung_jawab'] = anti_inject('n');
+            $data_disposisi_doc['is_cc'] = anti_inject('y');
+            $data_disposisi_doc['is_aktif'] = 'y';
+            $this->M_pekerjaan->insertPekerjaanDisposisi($data_disposisi_doc);
+            $data_cc = $this->db->get_where('global.global_pegawai', ['pegawai_nik' => $value])->row_array();
+            dblog('I',  $pekerjaan_id, 'Pekerjaan Telah di CC ke ' . $data_cc['pegawai_nama'] . ' Sebagai CC Non HPS', $isi['pegawai_nik']);
+            $tujuan = $data_cc['pegawai_nik'];
+            $tujuan_nama = $data_cc['pegawai_nama'];
+            $kalimat = "Pekerjaan telah di CC kepada anda";
+            sendWA($pekerjaan_id, $tujuan, $tujuan_nama, $kalimat);
+            sendNotif($pekerjaan_id, $isi['pegawai_nik'], $tujuan, $kalimat);
+          }
+        }
+      }
+    }
+    /* Pekerjaan Dreft */
+
+
+    /* Pekerjaan Send */
+    public function insertPekerjaanSend()
+    {
+      if ($this->input->get('id_user')) {
+        $isi = $this->db->query("SELECT * FROM global.global_pegawai WHERE pegawai_nik = '" . $this->input->get('id_user') . "'")->row_array();
+      } else {
+        $isi = $this->session->userdata();
+      }
+
+      if (anti_inject($this->input->post('jabatan_temp') == '2')) $pekerjaan_status = '3';
+      elseif (anti_inject($this->input->post('jabatan_temp') == '3')) $pekerjaan_status = '2';
+      else $pekerjaan_status = '1';
+
+      $pekerjaan_status_temp = anti_inject($this->input->post('pekerjaan_status'));
+      $pekerjaan_id = anti_inject($this->input->post('pekerjaan_id'));
+
+      if ($pekerjaan_status_temp == '1') { /* Ketika ada dreft*/
+        $data['pekerjaan_judul'] = anti_inject($this->input->post('pekerjaan_judul'));
+        $data['pekerjaan_waktu'] = date('Y-m-d', strtotime($this->input->post('pekerjaan_waktu')));
+        $data['pekerjaan_waktu_akhir'] = date('Y-m-d', strtotime($this->input->post('pekerjaan_waktu_akhir')));
+        $data['id_klasifikasi_pekerjaan'] = anti_inject($this->input->post('id_klasifikasi_pekerjaan'));
+        $data['pekerjaan_deskripsi'] = $this->input->post('pekerjaan_deskripsi');
+        $data['pic'] = anti_inject($this->input->post('pic'));
+        $data['pic_no_telp'] = anti_inject($this->input->post('pic_no_telp'));
+        $data['id_pekerjaan_disposisi'] = anti_inject($this->input->post('id_pekerjaan_disposisi'));
+        $data['tipe_pekerjaan'] = anti_inject($this->input->post('tipe_pekerjaan'));
+        $data['pekerjaan_status'] = anti_inject($pekerjaan_status);
+        $data['pekerjaan_tahun'] = $this->input->post('pekerjaan_tahun');
+        $data['pekerjaan_reviewer'] = $this->input->post('reviewer');
+        $data['pekerjaan_approver'] = $this->input->post('approver');
+        $data['pekerjaan_referensi_unit_kerja'] = $this->input->get_post('ref_unit_kerja');
+
+        $this->M_pekerjaan->updatePekerjaan($data, $pekerjaan_id);
+      } else { /* Ketika langsung send*/
+        $data['pekerjaan_id'] = anti_inject($this->input->post('pekerjaan_id'));
+        $data['pekerjaan_judul'] = anti_inject($this->input->post('pekerjaan_judul'));
+        $data['pekerjaan_waktu'] = date('Y-m-d', strtotime($this->input->post('pekerjaan_waktu')));
+        $data['pekerjaan_waktu_akhir'] = date('Y-m-d', strtotime($this->input->post('pekerjaan_waktu_akhir')));
+        $data['id_klasifikasi_pekerjaan'] = anti_inject($this->input->post('id_klasifikasi_pekerjaan'));
+        $data['pekerjaan_deskripsi'] = $this->input->post('pekerjaan_deskripsi');
+        $data['pic'] = anti_inject($isi['pegawai_nik']);
+        $data['pic_no_telp'] = anti_inject($this->input->post('pic_no_telp'));
+        $data['pekerjaan_status'] = anti_inject($pekerjaan_status);
+        $data['id_pekerjaan_disposisi'] = anti_inject($this->input->post('id_pekerjaan_disposisi'));
+        $data['pekerjaan_tahun'] = $this->input->post('pekerjaan_tahun');
+        $data['pekerjaan_reviewer'] = $this->input->post('reviewer');
+        $data['pekerjaan_approver'] = $this->input->post('approver');
+        $data['pekerjaan_referensi_unit_kerja'] = $this->input->get_post('ref_unit_kerja');
+        /*cek apakah sudah ada pekerjaan*/
+
+        $sql_pekerjaan = $this->db->query("SELECT count(*) as total FROM dec.dec_pekerjaan WHERE pekerjaan_id = '" . anti_inject($this->input->get_post('pekerjaan_id')) . "'");
+        $data_pekerjaan = $sql_pekerjaan->row_array();
+
+        if ($data_pekerjaan['total'] < 1) {
+          $this->M_pekerjaan->insertPekerjaan($data);
+        }
+      }
+
+      /* User */
+      /* Disposisi */
+      if ($this->input->post('reviewer') != '' || $this->input->post('reviewer') != null) {
+        $paramReviwer['pegawai_nik'] = $this->input->post('reviewer');
+        $userReviewer = $this->M_user->getUser($paramReviwer);
+
+        $data_disposisi['pekerjaan_disposisi_id'] = create_id();
+        $data_disposisi['pekerjaan_disposisi_waktu'] = date("Y-m-d H:i:s");
+        if ($userReviewer['pegawai_pgs_id']) {
+          $data_disposisi['id_user'] = $userReviewer['pegawai_pgs_nik'];
+          $data_disposisi['id_user_asli'] = $userReviewer['pegawai_nik'];
+          $data_disposisi['is_pgs'] = 'y';
+        } else {
+          $data_disposisi['id_user'] = $userReviewer['pegawai_nik'];
+        }
+
+        $data_disposisi['id_pekerjaan'] = anti_inject($pekerjaan_id);
+        $data_disposisi['pekerjaan_disposisi_status'] = anti_inject($pekerjaan_status);
+
+        $this->M_pekerjaan->insertPekerjaanDisposisi($data_disposisi);
+      }
+
+      if ($this->input->post('approver') != '' || $this->input->post('approver') != null) {
+        $paramApprover['pegawai_nik'] = $this->input->post('approver');
+        $userApprover = $this->M_user->getUser($paramApprover);
+
+        $data_disposisi2['pekerjaan_disposisi_id'] = create_id();
+        $data_disposisi2['pekerjaan_disposisi_waktu'] = date("Y-m-d H:i:s");
+        if ($userApprover['pegawai_pgs_id']) {
+          $data_disposisi2['id_user'] = $userApprover['pegawai_pgs_nik'];
+          $data_disposisi2['id_user_asli'] = $userApprover['pegawai_nik'];
+          $data_disposisi2['is_pgs'] = 'y';
+        } else {
+          $data_disposisi2['id_user'] = $userApprover['pegawai_nik'];
+        }
+        $data_disposisi2['id_pekerjaan'] = anti_inject($pekerjaan_id);
+        $data_disposisi2['pekerjaan_disposisi_status'] = '2';
+
+        $this->M_pekerjaan->insertPekerjaanDisposisi($data_disposisi2);
+      }
+      /* Disposisi */
+
+      /* jika langsung dari VP*/
+      if (anti_inject($this->input->post('jabatan_temp') == '2')) {
+        if ($pekerjaan_status == '3') {
+          $param['pegawai_poscode'] = 'E53000000';
+          $user = $this->M_user->getUser($param);
+        } else {
+          $param['pegawai_poscode'] = $isi['pegawai_direct_superior'];
+          $user = $this->M_user->getUser($param);
+        }
+        /* User */
+
+        /* Disposisi */
+        $data_disposisi['pekerjaan_disposisi_id'] = create_id();
+        $data_disposisi['pekerjaan_disposisi_waktu'] = date("Y-m-d H:i:s");
+
+        if ($user['pegawai_pgs_id']) {
+          $data_disposisi['id_user'] = $user['pegawai_pgs_nik'];
+          $data_disposisi['id_user_asli'] = $user['pegawai_nik'];
+          $data_disposisi['is_pgs'] = 'y';
+        } else {
+          $data_disposisi['id_user'] = $user['pegawai_nik'];
+        }
+        $data_disposisi['id_pekerjaan'] = anti_inject($pekerjaan_id);
+        $data_disposisi['pekerjaan_disposisi_status'] = anti_inject($pekerjaan_status);
+        $this->M_pekerjaan->insertPekerjaanDisposisi($data_disposisi);
+        /*Disposisi*/
+      }
+
+      /*Insert CC*/
+      /*CC NON HPS*/
+      if ($this->input->get_post('cc_id')) {
+        $user = $this->input->get_post('cc_id');
+        $user_implode = implode("','", $user);
+        $cc_not_in = $this->db->query("SELECT * FROM dec.dec_pekerjaan_disposisi WHERE id_user NOT IN ('" . $user_implode . "') AND id_pekerjaan = '" . $pekerjaan_id . "' AND pekerjaan_disposisi_status = '8' AND is_cc= 'y' ")->result_array();
+          foreach ($cc_not_in as $value_not_in) {
+            $data_cc = $this->db->get_where('global.global_pegawai', array('pegawai_nik' => $value_not_in['id_user']))->row_array();
+            dblog('I',  $pekerjaan_id, '' . $data_cc['pegawai_nama'] . ' Telah Dihapus Dari CC Non HPS', $isi['pegawai_nik']);
+            $this->db->query("DELETE FROM dec.dec_pekerjaan_disposisi WHERE id_pekerjaan = '" . $pekerjaan_id . "' AND id_user = '" . $value_not_in['id_user'] . "' AND pekerjaan_disposisi_status = '8' AND is_cc = 'y'");
+          }
+          foreach ($user as $key => $value) {
+            $ada_cc = $this->db->query("SELECT count(*) as total FROM dec.dec_pekerjaan_disposisi WHERE id_pekerjaan = '" . $pekerjaan_id . "' AND pekerjaan_disposisi_status = '8' AND id_user = '" . $value . "' AND is_cc ='y'")->row_array();
+            if ($ada_cc['total'] == 0) {
+              $data_disposisi_doc['pekerjaan_disposisi_id'] = create_id();
+              $data_disposisi_doc['pekerjaan_disposisi_waktu'] = date('Y-m-d H:i:s');
+              $data_disposisi_doc['id_user'] = anti_inject($value);
+              $data_disposisi_doc['id_pekerjaan'] = $pekerjaan_id;
+              $data_disposisi_doc['pekerjaan_disposisi_status'] = anti_inject('8');
+              $data_disposisi_doc['id_penanggung_jawab'] = anti_inject('n');
+              $data_disposisi_doc['is_cc'] = anti_inject('y');
+              $data_disposisi_doc['is_aktif'] = 'y';
+              $this->M_pekerjaan->insertPekerjaanDisposisi($data_disposisi_doc);
+              $data_cc = $this->db->get_where('global.global_pegawai', ['pegawai_nik' => $value])->row_array();
+              $tujuan = $data_cc['pegawai_nik'];
+              $tujuan_nama = $data_cc['pegawai_nama'];
+              $kalimat = "Pekerjaan telah di CC kepada anda";
+              dblog('I',  $pekerjaan_id, 'Pekerjaan Telah di CC ke ' . $data_cc['pegawai_nama'] . ' Sebagai CC Non HPS', $isi['pegawai_nik']);
+              tasklog($pekerjaan_id, $data_disposisi_doc['pekerjaan_disposisi_status'], $value, $kalimat, 'n');
+              sendWA($pekerjaan_id, $tujuan, $tujuan_nama, $kalimat);
+              sendNotif($pekerjaan_id, $isi['pegawai_nik'], $tujuan, $kalimat);
+            }
+          }
+        }
+        /*CC NON HPS*/
+
+        /* INSERT PIC ke CC HPS */
+        $jml_cc = $this->db->get_where('dec.dec_pekerjaan_disposisi', ['id_pekerjaan' => $pekerjaan_id, 'pekerjaan_disposisi_status' => '8', 'is_cc' => 'h', 'id_user' => $isi['pegawai_nik']])->num_rows();
+
+        if ($jml_cc == 0) {
+          $data_disposisi_doc['pekerjaan_disposisi_id'] = create_id();
+          $data_disposisi_doc['pekerjaan_disposisi_waktu'] = date('Y-m-d H:i:s');
+          $data_disposisi_doc['id_user'] = anti_inject($isi['pegawai_nik']);
+          $data_disposisi_doc['id_pekerjaan'] = $pekerjaan_id;
+          $data_disposisi_doc['pekerjaan_disposisi_status'] = anti_inject('8');
+          $data_disposisi_doc['id_penanggung_jawab'] = anti_inject('n');
+          $data_disposisi_doc['is_cc'] = anti_inject('h');
+          $data_disposisi_doc['is_aktif'] = 'y';
+
+          $this->M_pekerjaan->insertPekerjaanDisposisi($data_disposisi_doc);
+          $data_cc = $this->db->get_where('global.global_pegawai', ['pegawai_nik' => $isi['pegawai_nik']])->row_array();
+          $tujuan = $data_cc['pegawai_nik'];
+          $tujuan_nama = $data_cc['pegawai_nama'];
+          $kalimat = "Pekerjaan telah di CC kepada anda";
+          dblog('I',  $pekerjaan_id, 'Pekerjaan Telah di CC ke ' . $data_cc['pegawai_nama'] . ' Sebagai CC HPS', $isi['pegawai_nik']);
+          tasklog($pekerjaan_id, $data_disposisi_doc['pekerjaan_disposisi_status'], $data_disposisi_doc['id_user'], $kalimat, 'n');
+          sendWA($pekerjaan_id, $tujuan, $tujuan_nama, $kalimat);
+          sendNotif($pekerjaan_id, $isi['pegawai_nik'], $tujuan, $kalimat);
+        }
+        /* INSERT PIC ke CC HPS */
+
+        /* Buat Notifikasi */
+        if ($pekerjaan_status == '3') {
+          $param['pegawai_poscode'] = 'E53000000';
+          $user = $this->M_user->getUser($param);
+        } else {
+          $param['pegawai_poscode'] = $isi['pegawai_direct_superior'];
+          $user = $this->M_user->getUser($param);
+        }
+
+        $dari = $isi['pegawai_nik'];
+        $tujuan = $user['pegawai_nik'];
+        $tujuan_nama = $user['pegawai_nama'];
+        $text = "Mohon untuk melakukan REVIEW pada pekerjaan ini";
+        dblog('I',  $pekerjaan_id, 'Pekerjaan Telah di Send ke AVP Customer', $isi['pegawai_nik']);
+        tasklog($pekerjaan_id, $data_disposisi['pekerjaan_disposisi_status'], $user['pegawai_nik'], $text, 'n');
+        sendWA($pekerjaan_id, $tujuan, $tujuan_nama, $text);
+        sendNotif($pekerjaan_id, $dari, $tujuan, $text);
+        /* Buat Notifikasi */
+      }
+      /* Pekerjaan Send */
+
+
+      /* Pekerjaan Edit */
+      public function updatePekerjaan()
+      {
+        if (isset($_GET['id_user'])) {
+          $sql_isi = $this->db->query("SELECT * FROM global.global_pegawai WHERE pegawai_nik = '" . $_GET['id_user'] . "'");
+          $isi = $sql_isi->row_array();
+        } else {
+          $isi = $this->session->userdata();
+        }
+
+        $pekerjaan_id = $this->input->post('pekerjaan_id');
+        if ($pekerjaan_id) {
+          $data['pekerjaan_judul'] = anti_inject($this->input->post('pekerjaan_judul'));
+          $data['pekerjaan_waktu'] = date('Y-m-d', strtotime($this->input->post('pekerjaan_waktu')));
+          $data['pekerjaan_waktu_akhir'] = date('Y-m-d', strtotime($this->input->post('pekerjaan_waktu_akhir')));
+          $data['id_klasifikasi_pekerjaan'] = anti_inject($this->input->post('id_klasifikasi_pekerjaan'));
+          $data['pekerjaan_deskripsi'] = ($this->input->post('pekerjaan_deskripsi'));
+          $data['pic'] = anti_inject($this->input->post('pic'));
+          $data['pic_no_telp'] = anti_inject($this->input->post('pic_no_telp'));
+          $data['id_pekerjaan_disposisi'] = anti_inject($this->input->post('id_pekerjaan_disposisi'));
+          $data['tipe_pekerjaan'] = anti_inject($this->input->post('tipe_pekerjaan'));
+          $data['pekerjaan_status'] = anti_inject('0');
+          $data['pekerjaan_tahun'] = $this->input->post('pekerjaan_tahun');
+          $data['pekerjaan_reviewer'] = $this->input->post('reviewer');
+          $data['pekerjaan_approver'] = $this->input->post('approver');
+
+
+          $this->M_pekerjaan->updatePekerjaan($data, $pekerjaan_id);
+
+          dblog('E', $pekerjaan_id, 'Pekerjaan Telah di Edit', $isi['pegawai_nik']);
+        }
+
+        /*CC NON HPS*/
+        if ($this->input->get_post('cc_id')) {
+          $user = $this->input->get_post('cc_id');
+          $user_implode = implode("','", $user);
+          $cc_not_in = $this->db->query("SELECT * FROM dec.dec_pekerjaan_disposisi WHERE id_user NOT IN ('" . $user_implode . "') AND id_pekerjaan = '" . $pekerjaan_id . "' AND pekerjaan_disposisi_status = '8' AND is_cc= 'y' ")->result_array();
+            foreach ($cc_not_in as $value_not_in) {
+              $data_cc = $this->db->get_where('global.global_pegawai', array('pegawai_nik' => $value_not_in['id_user']))->row_array();
+              dblog('I',  $pekerjaan_id, '' . $data_cc['pegawai_nama'] . ' Telah Dihapus Dari CC Non HPS', $isi['pegawai_nik']);
+              $this->db->query("DELETE FROM dec.dec_pekerjaan_disposisi WHERE id_pekerjaan = '" . $pekerjaan_id . "' AND id_user = '" . $value_not_in['id_user'] . "' AND pekerjaan_disposisi_status = '8' AND is_cc = 'y'");
+            }
+            foreach ($user as $key => $value) {
+              $ada_cc = $this->db->query("SELECT count(*) as total FROM dec.dec_pekerjaan_disposisi WHERE id_pekerjaan = '" . $pekerjaan_id . "' AND pekerjaan_disposisi_status = '8' AND id_user = '" . $value . "' AND is_cc ='y'")->row_array();
+              if ($ada_cc['total'] == 0) {
+                $data_disposisi_doc['pekerjaan_disposisi_id'] = create_id();
+                $data_disposisi_doc['pekerjaan_disposisi_waktu'] = date('Y-m-d H:i:s');
+                $data_disposisi_doc['id_user'] = anti_inject($value);
+                $data_disposisi_doc['id_pekerjaan'] = $pekerjaan_id;
+                $data_disposisi_doc['pekerjaan_disposisi_status'] = anti_inject('8');
+                $data_disposisi_doc['id_penanggung_jawab'] = anti_inject('n');
+                $data_disposisi_doc['is_cc'] = anti_inject('y');
+                $data_disposisi_doc['is_aktif'] = 'y';
+                $this->M_pekerjaan->insertPekerjaanDisposisi($data_disposisi_doc);
+                $data_cc = $this->db->get_where('global.global_pegawai', ['pegawai_nik' => $value])->row_array();
+                dblog('I',  $pekerjaan_id, 'Pekerjaan Telah di CC ke ' . $data_cc['pegawai_nama'] . ' Sebagai CC Non HPS', $isi['pegawai_nik']);
+                $tujuan = $data_cc['pegawai_nik'];
+                $tujuan_nama = $data_cc['pegawai_nama'];
+                $kalimat = "Pekerjaan telah di CC kepada anda";
+                sendWA($pekerjaan_id, $tujuan, $tujuan_nama, $kalimat);
+                sendNotif($pekerjaan_id, $isi['pegawai_nik'], $tujuan, $kalimat);
+              }
+            }
+          }
+          /*CC NON HPS*/
+        }
+        /* Pekerjaan Edit */
+
+
+        /* Insert File Pekerjaan Dokumen */
+        public function insertFilePekerjaanDokumen()
+        {
+          if (isset($_FILES['file'])) {
+            $directory = './document/';
+            if (!file_exists($directory)) mkdir($directory);
+
+            $tmpFile = $_FILES['file']['tmp_name'];
+            $fileName = $_FILES['file']['name'];
+            $fIleType = $_FILES['file']['type'];
+
+            if (!empty($tmpFile)) {
+              $Extension    = array("jpeg", "jpg", "png", "bmp", "gif", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "pdf");
+
+              $random = rand(11111111, 99999999);
+
+              $fileExt       = substr($fileName, strrpos($fileName, '.'));
+              $fileExt       = str_replace('.', '', $fileExt); /* Extension*/
+              $fileName      = preg_replace("/\.[^.\s]{3,4}$/", "", $fileName);
+              $newFileName = str_replace(' ', '', $_POST['id_pekerjaan'] . '_' . date('ymdhis') . '_' . $random . '.' . $fileExt);
+
+              if (in_array(strtolower($fileExt), $Extension)) {
+                move_uploaded_file($tmpFile, $directory . $newFileName);
+                echo $newFileName;
+              }
+            }
+          }
+        }
+        /*Insert File Pekerjaan Dokumen*/
+
+
+        /* Insert Pekerjaan Dokumen */
+        public function insertPekerjaanDokumenUsulan()
+        {
+          $user = (isset($_GET['id_user'])) ? $this->db->get_where('global.global_pegawai', array('pegawai_nik' => $_GET['id_user']))->row_array() : $this->session->userdata();
+
+          $data['pekerjaan_dokumen_id'] = anti_inject(create_id());
+          $data['id_pekerjaan'] = anti_inject($this->input->get_post('pekerjaan_id'));
+          $data['pekerjaan_dokumen_nama'] = anti_inject($this->input->get_post('pekerjaan_dokumen_nama'));
+          $data['pekerjaan_dokumen_file'] = anti_inject($this->input->get_post('savedFileName'));
+          $data['pekerjaan_dokumen_status'] = anti_inject('1');
+          $data['who_create'] = anti_inject($user['pegawai_nama']);
+          $data['id_create'] = anti_inject($user['pegawai_nik']);
+          $data['is_lama'] = anti_inject('n');
+          $data['pekerjaan_dokumen_awal'] = anti_inject('y');
+
+          $this->M_pekerjaan->insertPekerjaanDokumen($data);
+
+          dblog('I', $data['id_pekerjaan'], 'Dokumen IFA ' . $this->input->get_post('pekerjaan_dokumen_nama') . ' Telah Diupload', $user['pegawai_nik']);
+        }
+        /* Insert Pekerjaan Dokumen */
+
+
+        /* Update Pekerjaan Dokumen */
+        public function updatePekerjaanDokumen()
+        {
+          $user = (isset($_GET['id_user'])) ? $this->db->get_where('global.global_pegawai', array('pegawai_nik' => $_GET['id_user']))->row_array() : $this->session->userdata();
+
+          $id = $this->input->post('pekerjaan_dokumen_id');
+          $data = array(
+            'id_pekerjaan' => anti_inject($this->input->post('id_pekerjaan')),
+            'pekerjaan_dokumen_nama' => anti_inject($this->input->post('pekerjaan_dokumen_nama')),
+            'pekerjaan_dokumen_file' => anti_inject($this->input->post('savedFileName')),
+            'pekerjaan_dokumen_status' => anti_inject('1'),
+          );
+
+          $this->M_pekerjaan->updatePekerjaanDokumen($data, $id);
+
+          dblog('U', $data['id_pekerjaan'], 'Dokumen IFA ' . $this->input->get_post('pekerjaan_dokumen_nama') . ' Telah Diedit', $user['pegawai_nik']);
+        }
+        /* Update Pekerjaan Dokumen */
+
+
+        /* Proses Send VP */
+        public function prosesSendVP()
+        {
+
+
+          if (isset($_GET['id_user'])) {
+            $sql_isi = $this->db->query("SELECT * FROM global.global_pegawai WHERE pegawai_nik = '" . $_GET['id_user'] . "'");
+            $isi = $sql_isi->row_array();
+          } else {
+            $isi = $this->session->userdata();
+          }
+
+          $pekerjaan_id = anti_inject($this->input->get_post('id_pekerjaan_send_vp'));
+          $id_tanggung_jawab = null;
+          $pekerjaan_status_send_vp = anti_inject('8');
+
+
+
+
+
+          /*CC NON HPS*/
+          $is_cc = 'y';
+          if ($this->input->get_post('id_user_send_vp')) {
+            $user = $this->input->get_post('id_user_send_vp');
+            $user_implode = implode("','", $user);
+            $cc_not_in = $this->db->query("SELECT * FROM dec.dec_pekerjaan_disposisi WHERE id_user NOT IN ('" . $user_implode . "') AND id_pekerjaan = '" . $pekerjaan_id . "' AND pekerjaan_disposisi_status = '8' AND is_cc= 'y' ")->result_array();
+              foreach ($cc_not_in as $value_not_in) {
+                $data_cc = $this->db->get_where('global.global_pegawai', array('pegawai_nik' => $value_not_in['id_user']))->row_array();
+                dblog('I',  $pekerjaan_id, '' . $data_cc['pegawai_nama'] . ' Telah Dihapus Dari CC Non HPS', $isi['pegawai_nik']);
+                $this->db->query("DELETE FROM dec.dec_pekerjaan_disposisi WHERE id_pekerjaan = '" . $pekerjaan_id . "' AND id_user = '" . $value_not_in['id_user'] . "' AND pekerjaan_disposisi_status = '8' AND is_cc = 'y'");
+              }
+              foreach ($user as $key => $value) {
+                $ada_cc = $this->db->query("SELECT count(*) as total FROM dec.dec_pekerjaan_disposisi WHERE id_pekerjaan = '" . $pekerjaan_id . "' AND pekerjaan_disposisi_status = '8' AND id_user = '" . $value . "' AND is_cc ='y'")->row_array();
+                if ($ada_cc['total'] == 0) {
+                  $data_disposisi_doc['pekerjaan_disposisi_id'] = create_id();
+                  $data_disposisi_doc['pekerjaan_disposisi_waktu'] = date('Y-m-d H:i:s');
+                  $data_disposisi_doc['id_user'] = anti_inject($value);
+                  $data_disposisi_doc['id_pekerjaan'] = $pekerjaan_id;
+                  $data_disposisi_doc['pekerjaan_disposisi_status'] = anti_inject('8');
+                  $data_disposisi_doc['id_penanggung_jawab'] = anti_inject('n');
+                  $data_disposisi_doc['is_cc'] = anti_inject('y');
+                  $data_disposisi_doc['is_aktif'] = 'y';
+                  $this->M_pekerjaan->insertPekerjaanDisposisi($data_disposisi_doc);
+                  $data_cc = $this->db->get_where('global.global_pegawai', ['pegawai_nik' => $value])->row_array();
+                  /*notifikasi*/
+                  $tujuan = $data_cc['pegawai_nik'];
+                  $tujuan_nama = $data_cc['pegawai_nama'];
+                  $kalimat = "Pekerjaan telah di CC kepada anda";
+                  dblog('I',  $pekerjaan_id, 'Pekerjaan Telah di CC ke ' . $data_cc['pegawai_nama'] . ' Sebagai CC Non HPS', $isi['pegawai_nik']);
+                  tasklog($pekerjaan_id, $data_disposisi_doc['pekerjaan_disposisi_status'], $data_cc['pegawai_nik'], $kalimat, 'n');
+                  sendWA($pekerjaan_id, $tujuan, $tujuan_nama, $kalimat);
+                  sendNotif($pekerjaan_id, $isi['pegawai_nik'], $tujuan, $kalimat);
+
+                  /*notifikasi*/
+                }
+              }
+            }
+            /*    CC NON HPS*/
+            /* CC HPS*/
+            $is_cc_hps = 'h';
+            if ($this->input->get_post('id_user_send_vp_hps')) {
+              $user = $this->input->get_post('id_user_send_vp_hps');
+              $user_implode = implode("','", $user);
+              $cc_not_in = $this->db->query("SELECT * FROM dec.dec_pekerjaan_disposisi WHERE id_user NOT IN ('" . $user_implode . "') AND id_pekerjaan = '" . $pekerjaan_id . "' AND pekerjaan_disposisi_status = '8' AND is_cc= 'h' ")->result_array();
+                foreach ($cc_not_in as $value_not_in) {
+                  $data_cc = $this->db->get_where('global.global_pegawai', array('pegawai_nik' => $value_not_in['id_user']))->row_array();
+                  dblog('I',  $pekerjaan_id, '' . $data_cc['pegawai_nama'] . ' Telah Dihapus Dari CC HPS', $isi['pegawai_nik']);
+                  $this->db->query("DELETE FROM dec.dec_pekerjaan_disposisi WHERE id_pekerjaan = '" . $pekerjaan_id . "' AND id_user = '" . $value_not_in['id_user'] . "' AND pekerjaan_disposisi_status = '8' AND is_cc = 'h'");
+                }
+                foreach ($user as $key => $value) {
+                  $ada_cc = $this->db->query("SELECT count(*) as total FROM dec.dec_pekerjaan_disposisi WHERE id_pekerjaan = '" . $pekerjaan_id . "' AND pekerjaan_disposisi_status = '8' AND id_user = '" . $value . "' AND is_cc ='h'")->row_array();
+                  if ($ada_cc['total'] == 0) {
+                    $data_disposisi_doc['pekerjaan_disposisi_id'] = create_id();
+                    $data_disposisi_doc['pekerjaan_disposisi_waktu'] = date('Y-m-d H:i:s');
+                    $data_disposisi_doc['id_user'] = anti_inject($value);
+                    $data_disposisi_doc['id_pekerjaan'] = $pekerjaan_id;
+                    $data_disposisi_doc['pekerjaan_disposisi_status'] = anti_inject('8');
+                    $data_disposisi_doc['id_penanggung_jawab'] = anti_inject('n');
+                    $data_disposisi_doc['is_cc'] = anti_inject('h');
+                    $data_disposisi_doc['is_aktif'] = 'y';
+                    $this->M_pekerjaan->insertPekerjaanDisposisi($data_disposisi_doc);
+                    $data_cc = $this->db->get_where('global.global_pegawai', ['pegawai_nik' => $value])->row_array();
+                    /*notifikasi*/
+                    $tujuan = $data_cc['pegawai_nik'];
+                    $tujuan_nama = $data_cc['pegawai_nama'];
+                    $kalimat = "Pekerjaan telah di CC kepada anda";
+                    dblog('I',  $pekerjaan_id, 'Pekerjaan Telah di CC ke ' . $data_cc['pegawai_nama'] . ' Sebagai CC HPS', $isi['pegawai_nik']);
+                    tasklog($pekerjaan_id, $data_disposisi_doc['pekerjaan_disposisi_status'], $data_cc['pegawai_nik'], $kalimat, 'n');
+                    sendWA($pekerjaan_id, $tujuan, $tujuan_nama, $kalimat);
+                    sendNotif($pekerjaan_id, $isi['pegawai_nik'], $tujuan, $kalimat);
+
+                    /*notifikasi*/
+                  }
+                }
+              }
+              /* CC HPS*/
+
+              $where_id_user = ($isi['pegawai_nik']);
+              $where_id_pekerjaan = (($pekerjaan_id));
+              $where_disposisi_status = '6';
+              $param_staf['is_proses'] = 'y';
+              $this->M_pekerjaan->updateStatusProses($where_id_user, $where_id_pekerjaan, $where_disposisi_status, $param_staf);
+
+              $pekerjaan_status = '7';
+
+              /* cek apakah koordinator atau bukan*/
+              $sql_koordinator = $this->db->query("SELECT count(*) as total FROM dec.dec_pekerjaan_disposisi WHERE id_pekerjaan = '" . anti_inject($this->input->get_post('id_pekerjaan_send_vp')) . "' AND id_penanggung_jawab = '" . anti_inject('y') . "' AND pekerjaan_disposisi_status = '" . anti_inject('4') . "' AND id_user = '" . $isi['pegawai_nik'] . "'");
+              $data_koordinator = $sql_koordinator->row_array();
+
+              $sql_proses = $this->db->query("SELECT * FROM dec.dec_pekerjaan_disposisi WHERE id_pekerjaan = '" . $this->input->get_post('id_pekerjaan_send_vp') . "' AND pekerjaan_disposisi_status = '6' AND is_proses is null");
+              $jumlah_proses = $sql_proses->num_rows();
+
+              $sql_proses_koor = $this->db->query("SELECT * FROM dec.dec_pekerjaan_disposisi WHERE id_pekerjaan = '" . $this->input->get_post('id_pekerjaan_send_vp') . "' AND pekerjaan_disposisi_status = '6' AND is_proses ='y' AND id_penanggung_jawab = 'y'");
+              $jumlah_proses_koor = $sql_proses_koor->num_rows();
+
+              $pekerjaan_id = $this->input->get_post('id_pekerjaan_send_vp');
+              if ($pekerjaan_id) {
+                if ($data_koordinator['total'] > '0' || ($jumlah_proses == '0' && $jumlah_proses_koor > '0')) {
+                  $data['pekerjaan_status'] = anti_inject($pekerjaan_status);
+                  $this->M_pekerjaan->updatePekerjaan($data, $pekerjaan_id);
+                  /* User */
+                  $data_user['pegawai_poscode'] = $isi['pegawai_direct_superior'];
+                  $user = $this->M_user->getUser($data_user);
+                  /* User */
+
+                  /* Get Pekerjaan */
+                  $sql_pekerjaan = $this->db->query("SELECT pic FROM dec.dec_pekerjaan WHERE pekerjaan_id = '" . $pekerjaan_id . "'");
+                  $isi_pekerjaan = $sql_pekerjaan->row_array();
+                  /* Get Pekerjaan */
+
+                  /* Disposisi */
+                  $data_disposisi['pekerjaan_disposisi_id'] = create_id();
+                  $data_disposisi['pekerjaan_disposisi_waktu'] = date("Y-m-d H:i:s");
+
+                  if ($this->input->get_post('pekerjaan_status') == '8') {
+                    $usernya = $isi_pekerjaan['pic'];
+                  } else if ($this->input->get_post('pekerjaan_status') == '5') {
+                    $vp_cangun = $this->db->query("SELECT * FROM global.global_pegawai WHERE pegawai_poscode = 'E53000000'")->row_array();
+                    $usernya = $vp_cangun['pegawai_nik'];
+                  } else {
+                    $usernya = $user['pegawai_nik'];
+                  }
+
+                  $data_disposisi['id_user'] = $usernya;
+                  $data_disposisi['id_pekerjaan'] = anti_inject($pekerjaan_id);
+                  $data_disposisi['pekerjaan_disposisi_status'] = anti_inject($pekerjaan_status);
+                  $this->M_pekerjaan->insertPekerjaanDisposisi($data_disposisi);
+                  /* Buat Notifikasi */
+                  $dari = $isi['pegawai_nik'];
+                  $tujuan = $user['pegawai_nik'];
+                  $tujuan_nama = $user['pegawai_nama'];
+                  $text = "Mohon untuk melakukan APPROVE DOKUMEN IFA pada pekerjaan ini";
+                  dblog('I',  $pekerjaan_id, 'Pekerjaan IFA Telah di Review AVP Koordinator', $isi['pegawai_nik']);
+                  tasklog($pekerjaan_id, $data_disposisi['pekerjaan_disposisi_status'], $user['pegawai_nik'], $text, 'n');
+                  sendWA($pekerjaan_id, $tujuan, $tujuan_nama, $text);
+                  sendNotif($pekerjaan_id, $dari, $tujuan, $text);
+                  /* Buat Notifikasi */
+                } else {
+                  /* Buat Notifikasi */
+                  $user_koor = $this->db->query("SELECT * FROM dec.dec_pekerjaan_disposisi dpd LEFT JOIN global.global_pegawai gp ON gp.pegawai_nik = dpd.id_user WHERE id_pekerjaan = '" . anti_inject($this->input->get_post('id_pekerjaan_send_vp')) . "' AND id_penanggung_jawab = '" . anti_inject('y') . "' AND pekerjaan_disposisi_status = '" . anti_inject('4') . "' ")->row_array();
+                  $dari = $isi['pegawai_nik'];
+                  $tujuan = $user_koor['pegawai_nik'];
+                  $tujuan_nama = $user_koor['pegawai_nama'];
+                  $text = "Pekerjaan Telah di Review IFA AVP Terkait";
+                  dblog('I',  $pekerjaan_id, 'Pekerjaan IFA Telah di Review AVP Terkait', $isi['pegawai_nik']);
+                  /* Buat Notifikasi */
+                }
+              }
+              /* Pekerjaan */
+
+              /* Dokumen */
+              $sql_bagian = $this->db->query("SELECT id_bagian FROM global.global_bagian_detail WHERE id_pegawai = '" . $isi['pegawai_nik'] . "'");
+              $data_bagian = $sql_bagian->row_array();
+
+              $data_pegawai = $this->db->query("SELECT id_user,id_pekerjaan,pekerjaan_disposisi_status FROM dec.dec_pekerjaan_disposisi WHERE id_pekerjaan = '" . $pekerjaan_id . "' AND id_user = '" . $isi['pegawai_nik'] . "' AND pekerjaan_disposisi_status = '6'")->row_array();
+
+              /*    ubah status dokumen ke IFC*/
+              $data_dokumen_send = $this->db->query("SELECT * FROM dec.dec_pekerjaan_dokumen WHERE id_pekerjaan = '" . $pekerjaan_id . "' AND id_create_awal IN (SELECT id_pegawai FROM global.global_bagian_detail a LEFT JOIN dec.dec_pekerjaan_disposisi b ON b.id_user = a.id_pegawai WHERE id_bagian = '" . $data_bagian['id_bagian'] . "' AND id_pekerjaan = '" . $pekerjaan_id . "' ) AND pekerjaan_dokumen_status <= '2' AND (is_lama !='y' OR is_lama is null) AND pekerjaan_dokumen_awal != 'y' AND is_hps = 'n' AND (is_update_ifa !='y' OR is_update_ifa is NULL)")->result_array();
+
+              foreach ($data_dokumen_send as $val_dokumen) {
+                $dokumen_ada = $this->db->query("SELECT * FROM dec.dec_pekerjaan_dokumen WHERE id_pekerjaan = '" . $this->input->get_post('pekerjaan_id') . "' AND id_create_awal = '" . $val_dokumen['id_create_awal'] . "' AND pekerjaan_dokumen_status = '3' AND pekerjaan_dokumen_nama = '" . $val_dokumen['pekerjaan_dokumen_nama'] . "' AND id_pekerjaan_template = '" . $val_dokumen['id_pekerjaan_template'] . "'  AND is_hps = 'n' AND pekerjaan_dokumen_file = '" . $val_dokumen['pekerjaan_dokumen_file'] . "'")->row_array();
+                $nomor_revisi = $this->db->query("SELECT max(pekerjaan_dokumen_revisi) as nomor_revisi FROM dec.dec_pekerjaan_dokumen WHERE pekerjaan_dokumen_id = '" . $val_dokumen['pekerjaan_dokumen_id'] . "'")->row_array();
+                $nomor_revisi_baru = $nomor_revisi['nomor_revisi'];
+                if (!empty($dokumen_ada) && ($dokumen_ada['pekerjaan_dokumen_nama'] == $val_dokumen['pekerjaan_dokumen_nama'] && $dokumen_ada['id_pekerjaan_template'] == $val_dokumen['id_pekerjaan_template'] && $dokumen_ada['id_create_awal'] == $val_dokumen['id_create_awal'])) {
+                  /*        skip*/
+                } else {
+                  $data['pekerjaan_dokumen_id_temp'] = anti_inject($val_dokumen['pekerjaan_dokumen_id']);
+                  $data['pekerjaan_dokumen_id'] = anti_inject(create_id());
+                  $data['pekerjaan_dokumen_status'] = '3';
+                  $data['pekerjaan_dokumen_revisi'] = $nomor_revisi_baru;
+                  $data['pekerjaan_dokumen_keterangan'] = $val_dokumen['pekerjaan_dokumen_keterangan'];
+                  $data['id_create'] = $isi['pegawai_nik'];
+                  $data['is_proses'] = 'y';
+                  $data['pekerjaan_dokumen_waktu_update'] = date('Y-m-d H:i:s');
+                  $this->M_pekerjaan->simpanAksiSama($data);
+
+                  $data_dokumen = $this->db->query("SELECT * FROM dec.dec_pekerjaan_dokumen a LEFT JOIN dec.dec_pekerjaan_template b ON b.pekerjaan_template_id = a.id_pekerjaan_template WHERE pekerjaan_dokumen_id = '" . $val_dokumen['pekerjaan_dokumen_id'] . "'")->row_array();
+
+                  $this->db->query("UPDATE dec.dec_pekerjaan_dokumen SET pekerjaan_dokumen_waktu = '" . date('Y-m-d H:i:s') . "' WHERE pekerjaan_dokumen_id = '" . $data['pekerjaan_dokumen_id'] . "' AND pekerjaan_dokumen_status >= '4'");
+
+                  dblog('I', $this->input->get_post('pekerjaan_id'), 'Dokumen IFA ' . $data_dokumen['pekerjaan_template_nama'] . ' - ' . $data_dokumen['pekerjaan_dokumen_nama'] . ' Telah  DiApprove', $isi['pegawai_nik']);
+                }
+              }
+              $this->db->query("UPDATE dec.dec_pekerjaan_dokumen SET is_lama = 'y' WHERE id_pekerjaan = '" . $pekerjaan_id . "' AND id_create_awal IN (SELECT id_pegawai FROM global.global_bagian_detail a LEFT JOIN dec.dec_pekerjaan_disposisi b ON b.id_user = a.id_pegawai WHERE id_bagian = '" . $data_bagian['id_bagian'] . "' AND id_pekerjaan = '" . $pekerjaan_id . "' ) AND (pekerjaan_dokumen_status = '0' OR pekerjaan_dokumen_status = '2') AND (is_lama !='y' OR is_lama is null) AND pekerjaan_dokumen_awal != 'y' AND is_hps = 'n'");
+
+              $data_dokumen_send_hps =   $this->db->query("SELECT * FROM dec.dec_pekerjaan_dokumen WHERE id_pekerjaan = '" . $pekerjaan_id . "' AND id_create_awal IN (SELECT id_pegawai FROM global.global_bagian_detail a LEFT JOIN dec.dec_pekerjaan_disposisi b ON b.id_user = a.id_pegawai WHERE id_bagian = '" . $data_bagian['id_bagian'] . "' AND id_pekerjaan = '" . $pekerjaan_id . "' ) AND pekerjaan_dokumen_status <= '2' AND (is_lama !='y' OR is_lama is null) AND pekerjaan_dokumen_awal != 'y' AND is_hps = 'y' AND (is_update_ifa !='y' OR is_update_ifa is NULL)")->result_array();
+
+              foreach ($data_dokumen_send_hps as $val_dokumen) {
+                $dokumen_ada = $this->db->query("SELECT * FROM dec.dec_pekerjaan_dokumen WHERE id_pekerjaan = '" . $this->input->get_post('pekerjaan_id') . "' AND id_create_awal = '" . $val_dokumen['id_create_awal'] . "' AND pekerjaan_dokumen_status ='3' AND pekerjaan_dokumen_nama = '" . $val_dokumen['pekerjaan_dokumen_nama'] . "' AND id_pekerjaan_template = '" . $val_dokumen['id_pekerjaan_template'] . "'  AND is_hps = 'y' AND pekerjaan_dokumen_file = '" . $val_dokumen['pekerjaan_dokumen_file'] . "'")->row_array();
+                $nomor_revisi = $this->db->query("SELECT max(pekerjaan_dokumen_revisi) as nomor_revisi FROM dec.dec_pekerjaan_dokumen WHERE pekerjaan_dokumen_id = '" . $val_dokumen['pekerjaan_dokumen_id'] . "'")->row_array();
+                $nomor_revisi_baru = $nomor_revisi['nomor_revisi'];
+                if (!empty($dokumen_ada) && ($dokumen_ada['pekerjaan_dokumen_nama'] == $val_dokumen['pekerjaan_dokumen_nama'] && $dokumen_ada['id_pekerjaan_template'] == $val_dokumen['id_pekerjaan_template'] && $dokumen_ada['id_create_awal'] == $val_dokumen['id_create_awal'])) {
+                  /*skip*/
+                } else {
+                  $data['pekerjaan_dokumen_id_temp'] = anti_inject($val_dokumen['pekerjaan_dokumen_id']);
+                  $data['pekerjaan_dokumen_id'] = anti_inject(create_id());
+                  $data['pekerjaan_dokumen_status'] = '3';
+                  $data['pekerjaan_dokumen_revisi'] = $nomor_revisi_baru;
+                  $data['pekerjaan_dokumen_keterangan'] = $val_dokumen['pekerjaan_dokumen_keterangan'];
+                  $data['id_create'] = $isi['pegawai_nik'];
+                  $data['is_proses'] = 'y';
+                  $data['pekerjaan_dokumen_waktu_update'] = date('Y-m-d H:i:s');
+
+                  $this->M_pekerjaan->simpanAksiSama($data);
+                  $data_dokumen = $this->db->query("SELECT * FROM dec.dec_pekerjaan_dokumen a LEFT JOIN dec.dec_pekerjaan_template b ON b.pekerjaan_template_id = a.id_pekerjaan_template WHERE pekerjaan_dokumen_id = '" . $val_dokumen['pekerjaan_dokumen_id'] . "'")->row_array();
+
+                  $this->db->query("UPDATE dec.dec_pekerjaan_dokumen SET pekerjaan_dokumen_waktu = '" . date('Y-m-d H:i:s') . "' WHERE pekerjaan_dokumen_id = '" . $data['pekerjaan_dokumen_id'] . "' AND pekerjaan_dokumen_status >= '4'");
+
+                  dblog('I', $this->input->get_post('pekerjaan_id'), 'Dokumen IFA ' . $data_dokumen['pekerjaan_template_nama'] . ' - ' . $data_dokumen['pekerjaan_dokumen_nama'] . ' Telah  DiApprove', $isi['pegawai_nik']);
+                }
+              }
+              $this->db->query("UPDATE dec.dec_pekerjaan_dokumen SET is_lama = 'y' WHERE id_pekerjaan = '" . $pekerjaan_id . "' AND id_create_awal IN (SELECT id_pegawai FROM global.global_bagian_detail a LEFT JOIN dec.dec_pekerjaan_disposisi b ON b.id_user = a.id_pegawai WHERE id_bagian = '" . $data_bagian['id_bagian'] . "' AND id_pekerjaan = '" . $pekerjaan_id . "' ) AND (pekerjaan_dokumen_status = '0' OR pekerjaan_dokumen_status = '2') AND (is_lama !='y' OR is_lama is null) AND pekerjaan_dokumen_awal != 'y' AND is_hps = 'y'");
+              /* Dokumen */
+
+              $dataPekerjaan = $this->db->get_where('dec.dec_pekerjaan', ['pekerjaan_id' => $pekerjaan_id])->row_array();
+
+              $dataPerencana = $this->db->query("SELECT * from dec.dec_pekerjaan_disposisi a left join global.global_bagian_detail b ON a.id_user = b.id_pegawai where id_pekerjaan = '" . $pekerjaan_id . "' and pekerjaan_disposisi_status = '5' and id_bagian in (select id_bagian from global.global_bagian_detail where id_pegawai  = '" . $isi['pegawai_nik'] . "') ")->row_array();
+
+
+              if (date('Y-m-d') <= $dataPerencana['pekerjaan_disposisi_waktu_start']) {
+                $tanggalFinish = $dataPerencana['pekerjaan_disposisi_waktu_start'];
+              } else {
+                $tanggalFinish = date('Y-m-d');
+              }
+
+              $startDate = new DateTime($dataPerencana['pekerjaan_disposisi_waktu_start']);
+              $endDate = new DateTime($tanggalFinish);
+
+              $interval = $startDate->diff($endDate);
+
+              $durationInDays = $interval->days + 1;
+
+              $paramPerencanaUpdate = [
+                'pekerjaan_disposisi_waktu_finish' => $tanggalFinish,
+                'pekerjaan_disposisi_durasi' => $durationInDays,
+              ];
+
+              $this->M_pekerjaan->updatePekerjaanDisposisiDisposisi($dataPerencana['pekerjaan_disposisi_id'], $paramPerencanaUpdate);
+              $data_koor = $this->db->query("SELECT * FROM dec.dec_pekerjaan_disposisi WHERE id_pekerjaan = '" . $pekerjaan_id . "' AND pekerjaan_disposisi_status = '6' AND id_penanggung_jawab = 'y'")->row_array();
+              $text = "Mohon untuk send VP pada pekerjaan ini";
+              if ($isi['pegawai_nik'] != $data_koor['id_user']) {
+                tasklog($pekerjaan_id, $data_koor['pekerjaan_disposisi_status'], $data_koor['id_user'], $text, 'n');
+              }
+
+              $dataPerencanaPekerjaanLain = $this->db->query("SELECT * FROM dec.dec_pekerjaan_disposisi a LEFT JOIN dec.dec_pekerjaan b ON b.pekerjaan_id = a.id_pekerjaan WHERE a.id_user = '" . $dataPerencana['id_user'] . "' AND pekerjaan_disposisi_waktu_start >= '" . $paramPerencanaUpdate['pekerjaan_disposisi_waktu_finish'] . "' AND pekerjaan_disposisi_id != '" . $dataPerencana['pekerjaan_disposisi_id'] . "'")->result_array();
+
+
+              foreach ($dataPerencanaPekerjaanLain as $key => $valuePerencanaPekerjaanLain) {
+                $idParamPerencanaUpdateLain = $valuePerencanaPekerjaanLain['pekerjaan_disposisi_id'];
+                $paramPerencanaUpdateLain = [
+                  'pekerjaan_disposisi_waktu_start' => date('Y-m-d', strtotime($paramPerencanaUpdate['pekerjaan_disposisi_waktu_finish'] . ' +1 day')),
+                  'pekerjaan_disposisi_waktu_finish' => date('Y-m-d', strtotime($paramPerencanaUpdate['pekerjaan_disposisi_waktu_finish'] . ' +1 day + ' . $valuePerencanaPekerjaanLain['pekerjaan_disposisi_durasi'] . ' days'))
+                ];
+
+                $this->M_pekerjaan->updatePekerjaanDisposisiDisposisi($idParamPerencanaUpdateLain, $paramPerencanaUpdateLain);
+
+                $textGanLog = "Pekerjaan " . $valuePerencanaPekerjaanLain['pekerjaan_judul'] . " Telah Dimajukan tanggal startnya " . $paramPerencanaUpdateLain['pekerjaan_disposisi_waktu_start'] . "Karena Pekerjaan " . $dataPekerjaan['pekerjaan_judul'] . "Finish nya telah maju " . $paramPerencanaUpdate['pekerjaan_disposisi_waktu_finish'];
+                $dataGanLog = [
+                  'gan_log_who' => $isi['pegawai_nama'],
+                  'gan_log_when' => date('Y-m-d H:i:s'),
+                  'gan_log_tipe' => ('I'),
+                  'gan_log_id' => create_id(),
+                  'gan_pekerjaan_id' => $valuePerencanaPekerjaanLain['pekerjaan_id'],
+                  'text' => $textGanLog,
+                ];
+                $this->db->insert('global.global_gan_log', $dataGanLog);
+                if ($data_koordinator['total'] > '0' || ($jumlah_proses == '0' && $jumlah_proses_koor > '0')) {
+
+                  $paramUpdatePekerjaan = [
+                    'pekerjaan_estimasi_selesai' => date('Y-m-d')
+                  ];
+
+                  $this->M_pekerjaan->updatePekerjaan($paramUpdatePekerjaan, $pekerjaan_id);
+
+                  $paramUpdatePekerjaanLain = [
+                    'pekerjaan_estimasi_mulai' => date('Y-m-d', strtotime($paramUpdatePekerjaan['pekerjaan_estimasi_selesai'] . ' +1 day')),
+                  ];
+
+                  $this->M_pekerjaan->updatePekerjaan($paramUpdatePekerjaanLain, $valuePerencanaPekerjaanLain['pekerjaan_id']);
+                }
+              }
+            }
+            /* Proses Send VP */
+
+
+            /* Proses Send VP  Koor*/
+            public function prosesSendVPKoor()
+            {
+              if (isset($_GET['id_user'])) {
+                $isi = $this->db->get_where('global.global_pegawai', array('pegawai_nik' => $_GET['id_user']))->row_array();
+              } else {
+                $isi = $this->session->userdata();
+              }
+
+              $pekerjaan_id = anti_inject($this->input->get_post('id_pekerjaan_send_vp'));
+              $id_tanggung_jawab = null;
+              $pekerjaan_status_send_vp = anti_inject('8');
+              /*CC NON HPS*/
+              if ($this->input->get_post('id_user_send_vp')) {
+                $user = $this->input->get_post('id_user_send_vp');
+                $user_implode = implode("','", $user);
+                $cc_not_in = $this->db->query("SELECT * FROM dec.dec_pekerjaan_disposisi WHERE id_user NOT IN ('" . $user_implode . "') AND id_pekerjaan = '" . $pekerjaan_id . "' AND pekerjaan_disposisi_status = '8' AND is_cc= 'y' ")->result_array();
+                  foreach ($cc_not_in as $value_not_in) {
+                    $data_cc = $this->db->get_where('global.global_pegawai', array('pegawai_nik' => $value_not_in['id_user']))->row_array();
+                    dblog('I',  $pekerjaan_id, '' . $data_cc['pegawai_nama'] . ' Telah Dihapus Dari CC Non HPS', $isi['pegawai_nik']);
+                    $this->db->query("DELETE FROM dec.dec_pekerjaan_disposisi WHERE id_pekerjaan = '" . $pekerjaan_id . "' AND id_user = '" . $value_not_in['id_user'] . "' AND pekerjaan_disposisi_status = '8' AND is_cc = 'y'");
+                  }
+                  foreach ($user as $key => $value) {
+                    $ada_cc = $this->db->query("SELECT count(*) as total FROM dec.dec_pekerjaan_disposisi WHERE id_pekerjaan = '" . $pekerjaan_id . "' AND pekerjaan_disposisi_status = '8' AND id_user = '" . $value . "' AND is_cc ='y'")->row_array();
+                    if ($ada_cc['total'] == 0) {
+                      $data_disposisi_doc['pekerjaan_disposisi_id'] = create_id();
+                      $data_disposisi_doc['pekerjaan_disposisi_waktu'] = date('Y-m-d H:i:s');
+                      $data_disposisi_doc['id_user'] = anti_inject($value);
+                      $data_disposisi_doc['id_pekerjaan'] = $pekerjaan_id;
+                      $data_disposisi_doc['pekerjaan_disposisi_status'] = anti_inject('8');
+                      $data_disposisi_doc['id_penanggung_jawab'] = anti_inject('n');
+                      $data_disposisi_doc['is_cc'] = anti_inject('y');
+                      $data_disposisi_doc['is_aktif'] = 'y';
+                      $this->M_pekerjaan->insertPekerjaanDisposisi($data_disposisi_doc);
+                      $data_cc = $this->db->get_where('global.global_pegawai', ['pegawai_nik' => $value])->row_array();
+                      $tujuan = $data_cc['pegawai_nik'];
+                      $tujuan_nama = $data_cc['pegawai_nama'];
+                      $kalimat = "Pekerjaan telah di CC kepada anda";
+                      dblog('I',  $pekerjaan_id, 'Pekerjaan Telah di CC ke ' . $data_cc['pegawai_nama'] . ' Sebagai CC Non HPS', $isi['pegawai_nik']);
+                      tasklog($pekerjaan_id, $data_disposisi_doc['pekerjaan_disposisi_status'], $data_cc['pegawai_nik'], $kalimat, 'n');
+                      sendWA($pekerjaan_id, $tujuan, $tujuan_nama, $kalimat);
+                      sendNotif($pekerjaan_id, $isi['pegawai_nik'], $tujuan, $kalimat);
+                    }
+                  }
+                }
+                /*CC NON HPS*/
+
+                /* CC HPS*/
+                if ($this->input->get_post('id_user_send_vp_hps')) {
+                  $user_implode = implode("','", $user);
+                  $cc_not_in = $this->db->query("SELECT * FROM dec.dec_pekerjaan_disposisi WHERE id_user NOT IN ('" . $user_implode . "') AND id_pekerjaan = '" . $pekerjaan_id . "' AND pekerjaan_disposisi_status = '8' AND is_cc= 'h' ")->result_array();
+                    foreach ($cc_not_in as $value_not_in) {
+                      $data_cc = $this->db->get_where('global.global_pegawai', array('pegawai_nik' => $value_not_in['id_user']))->row_array();
+                      dblog('I',  $pekerjaan_id, '' . $data_cc['pegawai_nama'] . ' Telah Dihapus Dari CC HPS', $isi['pegawai_nik']);
+                      $this->db->query("DELETE FROM dec.dec_pekerjaan_disposisi WHERE id_pekerjaan = '" . $pekerjaan_id . "' AND id_user = '" . $value_not_in['id_user'] . "' AND pekerjaan_disposisi_status = '8' AND is_cc = 'h'");
+                    }
+                    foreach ($user as $key => $value) {
+                      $ada_cc = $this->db->query("SELECT count(*) as total FROM dec.dec_pekerjaan_disposisi WHERE id_pekerjaan = '" . $pekerjaan_id . "' AND pekerjaan_disposisi_status = '8' AND id_user = '" . $value . "' AND is_cc ='h'")->row_array();
+                      if ($ada_cc['total'] == 0) {
+                        $data_disposisi_doc['pekerjaan_disposisi_id'] = create_id();
+                        $data_disposisi_doc['pekerjaan_disposisi_waktu'] = date('Y-m-d H:i:s');
+                        $data_disposisi_doc['id_user'] = anti_inject($value);
+                        $data_disposisi_doc['id_pekerjaan'] = $pekerjaan_id;
+                        $data_disposisi_doc['pekerjaan_disposisi_status'] = anti_inject('8');
+                        $data_disposisi_doc['id_penanggung_jawab'] = anti_inject('n');
+                        $data_disposisi_doc['is_cc'] = anti_inject('h');
+                        $data_disposisi_doc['is_aktif'] = 'y';
+                        $this->M_pekerjaan->insertPekerjaanDisposisi($data_disposisi_doc);
+                        $data_cc = $this->db->get_where('global.global_pegawai', ['pegawai_nik' => $value])->row_array();
+                        $tujuan = $data_cc['pegawai_nik'];
+                        $tujuan_nama = $data_cc['pegawai_nama'];
+                        $kalimat = "Pekerjaan telah di CC kepada anda";
+                        dblog('I',  $pekerjaan_id, 'Pekerjaan Telah di CC ke ' . $data_cc['pegawai_nama'] . ' Sebagai CC HPS', $isi['pegawai_nik']);
+                        tasklog($pekerjaan_id, $data_disposisi_doc['pekerjaan_disposisi_status'], $data_cc['pegawai_nik'], $kalimat, 'n');
+                        sendWA($pekerjaan_id, $tujuan, $tujuan_nama, $kalimat);
+                        sendNotif($pekerjaan_id, $isi['pegawai_nik'], $tujuan, $kalimat);
+                      }
+                    }
+                  }
+                  /*     CC HPS*/
+
+                  $where_id_user = ($isi['pegawai_nik']);
+                  $where_id_pekerjaan = (($pekerjaan_id));
+                  $where_disposisi_status = '6';
+                  $param_staf['is_proses'] = 'y';
+                  $this->M_pekerjaan->updateStatusProses($where_id_user, $where_id_pekerjaan, $where_disposisi_status, $param_staf);
+
+                  $data_user['pegawai_poscode'] = $isi['pegawai_direct_superior'];
+                  $user = $this->M_user->getUser($data_user);
+                  /* Buat Notifikasi */
+                  $dari = $isi['pegawai_nik'];
+                  $tujuan = $user['pegawai_nik'];
+                  $tujuan_nama = $user['pegawai_nama'];
+                  $text = "Mohon untuk melakukan REVIEW pada pekerjaan ini";
+                  dblog('I',  $pekerjaan_id, 'Pekerjaan Telah di Send ke AVP Customer', $isi['pegawai_nik']);
+                  sendWA($pekerjaan_id, $tujuan, $tujuan_nama, $text);
+                  sendNotif($pekerjaan_id, $dari, $tujuan, $text);
+                  /* Buat Notifikasi */
+
+                  $pekerjaan_status = '7';
+
+                  /*    cek apakah koordinator atau bukan*/
+                  $sql_koordinator = $this->db->query("SELECT count(*) as total FROM dec.dec_pekerjaan_disposisi WHERE id_pekerjaan = '" . anti_inject($this->input->get_post('id_pekerjaan_send_vp')) . "' AND id_penanggung_jawab = '" . anti_inject('y') . "' AND pekerjaan_disposisi_status = '" . anti_inject('6') . "' AND id_user = '" . $isi['pegawai_nik'] . "'");
+
+                  $data_koordinator = $sql_koordinator->row_array();
+                  /* cek apakah koordinator atau bukan*/
+                }
+                /* Proses Send VP  Koor*/
+
+                public function prosesSendAVPIFC()
+                {
+                  if ($this->input->get('id_user')) {
+                    $session = $this->db->get_where('global.global_pegawai', array('pegawai_nik' => $this->input->get('id_user')))->row_array();
+                  } else {
+                    $session = $this->session->userdata();
+                  }
+
+                  $pekerjaan_id = $this->input->get_post('id_pekerjaan');
+                  /*    CC NON HPS*/
+                  if ($this->input->get_post('id_user_cc')) {
+                    $user = $this->input->get_post('id_user_cc');
+                    $user_implode = implode("','", $user);
+                    $cc_not_in = $this->db->query("SELECT * FROM dec.dec_pekerjaan_disposisi WHERE id_user NOT IN ('" . $user_implode . "') AND id_pekerjaan = '" . $pekerjaan_id . "' AND pekerjaan_disposisi_status = '8' AND is_cc= 'y' ")->result_array();
+                      foreach ($cc_not_in as $value_not_in) {
+                        $data_cc = $this->db->get_where('global.global_pegawai', array('pegawai_nik' => $value_not_in['id_user']))->row_array();
+                        dblog('I',  $pekerjaan_id, '' . $data_cc['pegawai_nama'] . ' Telah Dihapus Dari CC Non HPS', $session['pegawai_nik']);
+                        $this->db->query("DELETE FROM dec.dec_pekerjaan_disposisi WHERE id_pekerjaan = '" . $pekerjaan_id . "' AND id_user = '" . $value_not_in['id_user'] . "' AND pekerjaan_disposisi_status = '8' AND is_cc = 'y'");
+                      }
+                      foreach ($user as $key => $value) {
+                        $ada_cc = $this->db->query("SELECT count(*) as total FROM dec.dec_pekerjaan_disposisi WHERE id_pekerjaan = '" . $pekerjaan_id . "' AND pekerjaan_disposisi_status = '8' AND id_user = '" . $value . "' AND is_cc ='y'")->row_array();
+                        if ($ada_cc['total'] == 0) {
+                          $data_disposisi_doc['pekerjaan_disposisi_id'] = create_id();
+                          $data_disposisi_doc['pekerjaan_disposisi_waktu'] = date('Y-m-d H:i:s');
+                          $data_disposisi_doc['id_user'] = anti_inject($value);
+                          $data_disposisi_doc['id_pekerjaan'] = $pekerjaan_id;
+                          $data_disposisi_doc['pekerjaan_disposisi_status'] = anti_inject('8');
+                          $data_disposisi_doc['id_penanggung_jawab'] = anti_inject('n');
+                          $data_disposisi_doc['is_cc'] = anti_inject('y');
+                          $data_disposisi_doc['is_aktif'] = 'y';
+                          $this->M_pekerjaan->insertPekerjaanDisposisi($data_disposisi_doc);
+                          $data_cc = $this->db->get_where('global.global_pegawai', ['pegawai_nik' => $value])->row_array();
+                          $tujuan = $data_cc['pegawai_nik'];
+                          $tujuan_nama = $data_cc['pegawai_nama'];
+                          $kalimat = "Pekerjaan telah di CC kepada anda";
+                          dblog('I',  $pekerjaan_id, 'Pekerjaan Telah di CC ke ' . $data_cc['pegawai_nama'] . ' Sebagai CC Non HPS', $session['pegawai_nik']);
+                          tasklog($pekerjaan_id, $data_disposisi_doc['pekerjaan_disposisi_status'], $data_cc['pegawai_nik'], $kalimat, 'n');
+                          sendWA($pekerjaan_id, $tujuan, $tujuan_nama, $kalimat);
+                          sendNotif($pekerjaan_id, $session['pegawai_nik'], $tujuan, $kalimat);
+                        }
+                      }
+                    }
+                    /*CC NON HPS*/
+
+                    /*    CC HPS*/
+                    if ($this->input->get_post('id_user_cc_hps')) {
+                      $user = $this->input->get_post('id_user_cc_hps');
+                      $user_implode = implode("','", $user);
+                      $cc_not_in = $this->db->query("SELECT * FROM dec.dec_pekerjaan_disposisi WHERE id_user NOT IN ('" . $user_implode . "') AND id_pekerjaan = '" . $pekerjaan_id . "' AND pekerjaan_disposisi_status = '8' AND is_cc= 'h' ")->result_array();
+                        foreach ($cc_not_in as $value_not_in) {
+                          $data_cc = $this->db->get_where('global.global_pegawai', array('pegawai_nik' => $value_not_in['id_user']))->row_array();
+                          dblog('I',  $pekerjaan_id, '' . $data_cc['pegawai_nama'] . ' Telah Dihapus Dari CC HPS', $session['pegawai_nik']);
+                          $this->db->query("DELETE FROM dec.dec_pekerjaan_disposisi WHERE id_pekerjaan = '" . $pekerjaan_id . "' AND id_user = '" . $value_not_in['id_user'] . "' AND pekerjaan_disposisi_status = '8' AND is_cc = 'h'");
+                        }
+                        foreach ($user as $key => $value) {
+                          $ada_cc = $this->db->query("SELECT count(*) as total FROM dec.dec_pekerjaan_disposisi WHERE id_pekerjaan = '" . $pekerjaan_id . "' AND pekerjaan_disposisi_status = '8' AND id_user = '" . $value . "' AND is_cc ='h'")->row_array();
+                          if ($ada_cc['total'] == 0) {
+                            $data_disposisi_doc['pekerjaan_disposisi_id'] = create_id();
+                            $data_disposisi_doc['pekerjaan_disposisi_waktu'] = date('Y-m-d H:i:s');
+                            $data_disposisi_doc['id_user'] = anti_inject($value);
+                            $data_disposisi_doc['id_pekerjaan'] = $pekerjaan_id;
+                            $data_disposisi_doc['pekerjaan_disposisi_status'] = anti_inject('8');
+                            $data_disposisi_doc['id_penanggung_jawab'] = anti_inject('n');
+                            $data_disposisi_doc['is_cc'] = anti_inject('h');
+                            $data_disposisi_doc['is_aktif'] = 'y';
+                            $this->M_pekerjaan->insertPekerjaanDisposisi($data_disposisi_doc);
+                            $data_cc = $this->db->get_where('global.global_pegawai', ['pegawai_nik' => $value])->row_array();
+                            $tujuan = $data_cc['pegawai_nik'];
+                            $tujuan_nama = $data_cc['pegawai_nama'];
+                            $kalimat = "Pekerjaan telah di CC kepada anda";
+                            dblog('I',  $pekerjaan_id, 'Pekerjaan Telah di CC ke ' . $data_cc['pegawai_nama'] . ' Sebagai CC HPS', $session['pegawai_nik']);
+                            tasklog($pekerjaan_id, $data_disposisi_doc['pekerjaan_disposisi_status'], $data_cc['pegawai_nik'], $kalimat, 'n');
+                            sendWA($pekerjaan_id, $tujuan, $tujuan_nama, $kalimat);
+                            sendNotif($pekerjaan_id, $session['pegawai_nik'], $tujuan, $kalimat);
+                          }
+                        }
+                      }
+
+                      /*UPDATE STATUS KE 'Y'*/
+                      $param_status['id_pekerjaan'] = anti_inject($this->input->get_post('id_pekerjaan'));
+                      $param_status['disposisi_status']  = '12';
+                      /*$param_status['disposisi_status']  = anti_inject($this->input->get_post('pekerjaan_status'));*/
+                      $param_status['id_user'] = anti_inject($session['pegawai_nik']);
+                      $data_status['is_proses'] = anti_inject('y');
+                      $this->M_pekerjaan->updateStatus($param_status, $data_status);
+                      $pekerjaan_status = '13';
+
+                      /*cek apakah koordinator atau bukan*/
+                      $sql_proses = $this->db->query("SELECT * FROM dec.dec_pekerjaan_disposisi WHERE id_pekerjaan = '" . $this->input->get_post('id_pekerjaan') . "' AND pekerjaan_disposisi_status = '12' AND is_proses is null");
+                      $jumlah_proses = $sql_proses->num_rows();
+
+                      $sql_proses_koor = $this->db->query("SELECT * FROM dec.dec_pekerjaan_disposisi WHERE id_pekerjaan = '" . $this->input->get_post('id_pekerjaan_send_vp') . "' AND pekerjaan_disposisi_status = '6' AND is_proses ='y' AND id_penanggung_jawab = 'y'");
+                      $jumlah_proses_koor = $sql_proses_koor->num_rows();
+
+                      /*cek apakah koordinator atau bukan*/
+
+                      $pekerjaan_id = $this->input->get_post('id_pekerjaan');
+                      if ($pekerjaan_id) {
+                        if ($jumlah_proses == '0' && $jumlah_proses_koor > '0') {
+                          $data['pekerjaan_status'] = anti_inject($pekerjaan_status);
+                          $this->M_pekerjaan->updatePekerjaan($data, $pekerjaan_id);
+
+
+                          /* Get Pekerjaan */
+                          $sql_pekerjaan = $this->db->query("SELECT pic FROM dec.dec_pekerjaan WHERE pekerjaan_id = '" . $pekerjaan_id . "'");
+                          $isi_pekerjaan = $sql_pekerjaan->row_array();
+                          /* Get Pekerjaan */
+
+                          /* Disposisi */
+                          $data_disposisi['pekerjaan_disposisi_id'] = create_id();
+                          $data_disposisi['pekerjaan_disposisi_waktu'] = date("Y-m-d H:i:s");
+                          $data_disposisi['id_user'] = ($pekerjaan_status == '8') ? $isi_pekerjaan['pic'] : $user['pegawai_nik'];
+                          $data_disposisi['id_pekerjaan'] = anti_inject($pekerjaan_id);
+                          $data_disposisi['pekerjaan_disposisi_status'] = anti_inject($pekerjaan_status);
+                          $this->M_pekerjaan->insertPekerjaanDisposisi($data_disposisi);
+                          /*Disposisi*/
+
+                          /* User */
+                          $data_user['pegawai_poscode'] = $session['pegawai_direct_superior'];
+                          $user = $this->M_user->getUser($data_user);
+                          /* User */
+                          /*notif*/
+                          $tujuan = $user['pegawai_nik'];
+                          $tujuan_nama = $user['pegawai_nama'];
+                          $kalimat = "Mohon untuk melakukan APPROVE DOKUMEN IFC pada pekerjaan ini";
+                          dblog('I',  $pekerjaan_id, 'Pekerjaan IFC Telah di Review AVP Koordinator', $session['pegawai_nik']);
+                          tasklog($pekerjaan_id, $data_disposisi['pekerjaan_disposisi_status'], $user['pegawai_nik'], $kalimat, 'n');
+                          sendWA($pekerjaan_id, $tujuan, $tujuan_nama, $kalimat);
+                          sendNotif($pekerjaan_id, $session['pegawai_nik'], $tujuan, $kalimat);
+                          /*notif*/
+                        }
+                      }
+                      /* Pekerjaan */
+
+                      /*    UPDATE DOKUMEN*/
+                      $sql_bagian = $this->db->query("SELECT id_bagian FROM global.global_bagian_detail WHERE id_pegawai = '" . $session['pegawai_nik'] . "'");
+                      $data_bagian = $sql_bagian->row_array();
+
+                      $data_dokumen = $this->db->query("SELECT * FROM dec.dec_pekerjaan_dokumen WHERE id_pekerjaan = '" . $this->input->get_post('id_pekerjaan') . "' AND is_lama = 'n' and pekerjaan_dokumen_status >= '8' AND pekerjaan_dokumen_status <= '9' AND is_hps='n' AND id_create_awal IN (SELECT id_pegawai FROM global.global_bagian_detail WHERE id_bagian = '" . $data_bagian['id_bagian'] . "')  ")->result_array();
+
+                      foreach ($data_dokumen as $val_dokumen) {
+                        $sql_status = $this->db->query("SELECT * FROM dec.dec_pekerjaan_dokumen WHERE pekerjaan_dokumen_id = '" . $val_dokumen['pekerjaan_dokumen_id'] . "'");
+                        $data_status = $sql_status->row_array();
+                        $status_dokumen = '10';
+                        $data_dokumen = $this->db->query("SELECT * FROM dec.dec_pekerjaan_dokumen a LEFT JOIN dec.dec_pekerjaan_template b ON b.pekerjaan_template_id = a.id_pekerjaan_template WHERE pekerjaan_dokumen_id = '" . $val_dokumen['pekerjaan_dokumen_id'] . "'")->row_array();
+                        if ($data_status['is_proses'] == null || $data_status['is_proses'] == '') {
+                          $proses = 'y';
+                        } else if ($data_status['is_proses'] == 'y') {
+                          $proses = 'a';
+                        } else if ($data_status['is_proses'] == 'a') {
+                          $proses = 'i';
+                        }
+                        if ($this->input->get_post('pekerjaan_dokumen_status') == 'n') {
+                          $status_dokumen_revisi = $data_status['pekerjaan_dokumen_revisi'] + 1;
+                        } else {
+                          $status_dokumen_revisi = null;
+                        }
+                        $data['pekerjaan_dokumen_id_temp'] = anti_inject($val_dokumen['pekerjaan_dokumen_id']);
+                        $data['pekerjaan_dokumen_id'] = create_id();
+                        $data['pekerjaan_dokumen_status'] = anti_inject($status_dokumen);
+                        $data['pekerjaan_dokumen_keterangan'] = anti_inject($this->input->post('pekerjaan_dokumen_keterangan'));
+                        $data['id_create'] = $session['pegawai_nik'];
+                        $data['is_proses'] = 'y';
+                        $data['id_create_awal'] = $data_status['id_create_awal'];
+                        $data['pekerjaan_dokumen_waktu'] = date('Y-m-d H:i:s');
+                        $data['pekerjaan_dokumen_revisi'] = $statut_dokumen_revisi;
+                        $data['pekerjaan_dokumen_waktu_update'] = date('Y-m-d H:i:s');
+                        $this->M_pekerjaan->simpanAksiIFASama($data);
+                        if ($this->input->get_post('pekerjaan_dokumen_status') == 'n') {
+                          dblog('I', $data_status['id_pekerjaan'], 'Dokumen IFC ' . $data_dokumen['pekerjaan_template_nama'] . ' - ' . $data_dokumen['pekerjaan_dokumen_nama'] . ' Telah  Direvisi dengan Alasan <span style="color:red">' . $data['pekerjaan_dokumen_keterangan'] . '</span>', $session['pegawai_nik']);
+                        } else {
+                          $this->db->query("UPDATE dec.dec_pekerjaan_dokumen SET pekerjaan_dokumen_waktu = '" . date('Y-m-d H:i:s') . "' WHERE pekerjaan_dokumen_id = '" . $data['pekerjaan_dokumen_id'] . "' AND pekerjaan_dokumen_status >= '4'");
+                          dblog('I', $data_status['id_pekerjaan'], 'Dokumen IFC ' . $data_dokumen['pekerjaan_template_nama'] . ' - ' . $data_dokumen['pekerjaan_dokumen_nama'] . ' Telah  DiApprove', $session['pegawai_nik']);
+                        }
+                        $param_lama['is_lama'] = 'y';
+                        $param_id = $val_dokumen['pekerjaan_dokumen_id'];
+                        $this->M_pekerjaan->editAksi($param_lama, $param_id);
+                      }
+
+                      $data_dokumen_hps = $this->db->query("SELECT * FROM dec.dec_pekerjaan_dokumen WHERE id_pekerjaan = '" . $this->input->get_post('id_pekerjaan') . "' AND is_lama = 'n' and pekerjaan_dokumen_status >= '8' AND pekerjaan_dokumen_status <= '9' AND is_hps='y' AND id_create_awal IN (SELECT id_pegawai FROM global.global_bagian_detail WHERE id_bagian = '" . $data_bagian['id_bagian'] . "')  ")->result_array();
+
+                      foreach ($data_dokumen_hps as $val_dokumen) {
+                        $sql_status = $this->db->query("SELECT * FROM dec.dec_pekerjaan_dokumen WHERE pekerjaan_dokumen_id = '" . $val_dokumen['pekerjaan_dokumen_id'] . "'");
+                        $data_status = $sql_status->row_array();
+                        $status_dokumen = '10';
+                        $data_dokumen = $this->db->query("SELECT * FROM dec.dec_pekerjaan_dokumen a LEFT JOIN dec.dec_pekerjaan_template b ON b.pekerjaan_template_id = a.id_pekerjaan_template WHERE pekerjaan_dokumen_id = '" . $val_dokumen['pekerjaan_dokumen_id'] . "'")->row_array();
+                        if ($data_status['is_proses'] == null || $data_status['is_proses'] == '') {
+                          $proses = 'y';
+                        } else if ($data_status['is_proses'] == 'y') {
+                          $proses = 'a';
+                        } else if ($data_status['is_proses'] == 'a') {
+                          $proses = 'i';
+                        }
+                        if ($this->input->get_post('pekerjaan_dokumen_status') == 'n') {
+                          $status_dokumen_revisi = $data_status['pekerjaan_dokumen_revisi'] + 1;
+                        } else {
+                          $status_dokumen_revisi = null;
+                        }
+                        $data['pekerjaan_dokumen_id_temp'] = anti_inject($val_dokumen['pekerjaan_dokumen_id']);
+                        $data['pekerjaan_dokumen_id'] = create_id();
+                        $data['pekerjaan_dokumen_status'] = anti_inject($status_dokumen);
+                        $data['pekerjaan_dokumen_keterangan'] = anti_inject($this->input->post('pekerjaan_dokumen_keterangan'));
+                        $data['id_create'] = $session['pegawai_nik'];
+                        $data['is_proses'] = 'y';
+                        $data['id_create_awal'] = $data_status['id_create_awal'];
+                        $data['pekerjaan_dokumen_waktu'] = date('Y-m-d H:i:s');
+                        $data['pekerjaan_dokumen_revisi'] = $statut_dokumen_revisi;
+                        $data['pekerjaan_dokumen_waktu_update'] = date('Y-m-d H:i:s');
+                        $this->M_pekerjaan->simpanAksiIFASama($data);
+                        if ($this->input->get_post('pekerjaan_dokumen_status') == 'n') {
+                          dblog('I', $data_status['id_pekerjaan'], 'Dokumen IFC ' . $data_dokumen['pekerjaan_template_nama'] . ' - ' . $data_dokumen['pekerjaan_dokumen_nama'] . ' Telah  Direvisi dengan Alasan <span style="color:red">' . $data['pekerjaan_dokumen_keterangan'] . '</span>', $session['pegawai_nik']);
+                        } else {
+                          $this->db->query("UPDATE dec.dec_pekerjaan_dokumen SET pekerjaan_dokumen_waktu = '" . date('Y-m-d H:i:s') . "' WHERE pekerjaan_dokumen_id = '" . $data['pekerjaan_dokumen_id'] . "' AND pekerjaan_dokumen_status >= '4'");
+                          dblog('I', $data_status['id_pekerjaan'], 'Dokumen IFC ' . $data_dokumen['pekerjaan_template_nama'] . ' - ' . $data_dokumen['pekerjaan_dokumen_nama'] . ' T
