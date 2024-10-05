@@ -1,0 +1,421 @@
+
+<html>
+  <head>
+    <title>Resume Order On Call</title>
+  </head>
+  <body onload="">
+    <table width="100%" border="1" style="border-collapse: collapse;" onload="window.print()">
+      <tr>
+        <th colspan="17">
+          <center>GOCRANE</center>
+        </th>
+      </tr>
+      <tr>
+        <th colspan="17">
+          <center>Jl. Jenderal Ahmad Yani - Gresik 61119</center>
+        </th>
+      </tr>
+      <tr>
+        <th colspan="17">
+          <center>(031)3981722</center>
+        </th>
+      </tr>
+      <tr>
+        <th colspan="17">
+          <center>Resume Order On Call</center>
+        </th>
+      </tr>
+    </table>
+    <br>
+    <table width="100%" border="1" style="border-collapse: collapse;">
+    <thead>
+                                    <tr>
+                                        <td align="center" rowspan="2">Unit</td>
+                                        <td align="center" rowspan="2">Kap. (Ton)</td>
+                                        <td align="center" colspan="11">Semua Order</td>
+                                        <td align="center" rowspan="2">KPI (Jam)</td>
+                                        <td align="center" rowspan="2">Utilisasi (%)</td>
+                                        <td align="center" rowspan="2">Availability (%)</td>
+                                        <td align="center" rowspan="2">Σ Komplain</td>
+                                    </tr>
+                                    <tr>
+                                                                                    <td align="center">RH/Ton Januari (Jam)</td>
+                                                                                    <td align="center">RH/Ton Februari (Jam)</td>
+                                                                                    <td align="center">RH/Ton Maret (Jam)</td>
+                                                                                    <td align="center">RH/Ton April (Jam)</td>
+                                                                                    <td align="center">RH/Ton Mei (Jam)</td>
+                                                                                    <td align="center">RH/Ton Juni (Jam)</td>
+                                                                                    <td align="center">RH/Ton Juli (Jam)</td>
+                                                                                    <td align="center">RH/Ton Agustus (Jam)</td>
+                                                                                    <td align="center">RH/Ton September (Jam)</td>
+                                                                                    <td align="center">RH/Ton Oktober (Jam)</td>
+                                                                                <td align="center">RH/Ton Januari s.d Oktober (Jam)</td>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                                                                                                                                        <tr>
+                                            <td align="center">CRN 20</td>
+                                            <td align="center">20 Ton</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">2</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                        <td align="center">2</td>
+                                            <td align="center">0</td>
+                                            <td align="center">0</td>
+                                            <td align="center">1</td>
+                                            <td align="center">-</td>
+                                                                                    </tr>
+                                                                                                                    <tr>
+                                            <td align="center">CRN 21</td>
+                                            <td align="center">20 Ton</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                        <td align="center">0</td>
+                                            <td align="center">0</td>
+                                            <td align="center">0</td>
+                                            <td align="center">1</td>
+                                            <td align="center">-</td>
+                                                                                    </tr>
+                                                                                                                    <tr>
+                                            <td align="center">CRN 22</td>
+                                            <td align="center">50 Ton</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                        <td align="center">0</td>
+                                            <td align="center">0</td>
+                                            <td align="center">0</td>
+                                            <td align="center">1</td>
+                                            <td align="center">-</td>
+                                                                                    </tr>
+                                                                                                                    <tr>
+                                            <td align="center">CRN 23</td>
+                                            <td align="center">90 Ton</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                        <td align="center">0</td>
+                                            <td align="center">0</td>
+                                            <td align="center">0</td>
+                                            <td align="center">1</td>
+                                            <td align="center">-</td>
+                                                                                    </tr>
+                                                                                                                    <tr>
+                                            <td align="center">CRN 24</td>
+                                            <td align="center">80 Ton</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">2</td>
+                                                                                        <td align="center">2</td>
+                                            <td align="center">0</td>
+                                            <td align="center">0</td>
+                                            <td align="center">1</td>
+                                            <td align="center">-</td>
+                                                                                    </tr>
+                                                                                                                    <tr>
+                                            <td align="center">CRN 25</td>
+                                            <td align="center">220 Ton</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                        <td align="center">0</td>
+                                            <td align="center">0</td>
+                                            <td align="center">0</td>
+                                            <td align="center">1</td>
+                                            <td align="center">-</td>
+                                                                                    </tr>
+                                                                                                                    <tr>
+                                            <td align="center">CRN 26</td>
+                                            <td align="center">50 Ton</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                        <td align="center">0</td>
+                                            <td align="center">0</td>
+                                            <td align="center">0</td>
+                                            <td align="center">1</td>
+                                            <td align="center">-</td>
+                                                                                    </tr>
+                                                                                                                    <tr>
+                                            <td align="center">DZR 16</td>
+                                            <td align="center">5.6 M<sup>3</sup></td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                        <td align="center">0</td>
+                                            <td align="center">0</td>
+                                            <td align="center">0</td>
+                                            <td align="center">1</td>
+                                            <td align="center">-</td>
+                                                                                    </tr>
+                                                                                                                    <tr>
+                                            <td align="center">DZR 17</td>
+                                            <td align="center">4.5 M<sup>3</sup></td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                        <td align="center">0</td>
+                                            <td align="center">0</td>
+                                            <td align="center">0</td>
+                                            <td align="center">1</td>
+                                            <td align="center">-</td>
+                                                                                    </tr>
+                                                                                                                    <tr>
+                                            <td align="center">DZR 18</td>
+                                            <td align="center">4.5 M<sup>3</sup></td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                        <td align="center">0</td>
+                                            <td align="center">0</td>
+                                            <td align="center">0</td>
+                                            <td align="center">1</td>
+                                            <td align="center">-</td>
+                                                                                    </tr>
+                                                                                                                    <tr>
+                                            <td align="center">FLT 198</td>
+                                            <td align="center">2.5 Ton</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                        <td align="center">0</td>
+                                            <td align="center">0</td>
+                                            <td align="center">0</td>
+                                            <td align="center">1</td>
+                                            <td align="center">-</td>
+                                                                                    </tr>
+                                                                                                                    <tr>
+                                            <td align="center">FLT 199</td>
+                                            <td align="center">2.5 Ton</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                        <td align="center">0</td>
+                                            <td align="center">0</td>
+                                            <td align="center">0</td>
+                                            <td align="center">1</td>
+                                            <td align="center">-</td>
+                                                                                    </tr>
+                                                                                                                    <tr>
+                                            <td align="center">FLT 201</td>
+                                            <td align="center">3.5 Ton</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                        <td align="center">0</td>
+                                            <td align="center">0</td>
+                                            <td align="center">0</td>
+                                            <td align="center">1</td>
+                                            <td align="center">-</td>
+                                                                                    </tr>
+                                                                                                                    <tr>
+                                            <td align="center">HT 05 TR 04</td>
+                                            <td align="center">30 Ton</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                        <td align="center">0</td>
+                                            <td align="center">0</td>
+                                            <td align="center">0</td>
+                                            <td align="center">1</td>
+                                            <td align="center">-</td>
+                                                                                    </tr>
+                                                                                                                    <tr>
+                                            <td align="center">HT 06 TR 11</td>
+                                            <td align="center">60 Ton</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                        <td align="center">0</td>
+                                            <td align="center">0</td>
+                                            <td align="center">0</td>
+                                            <td align="center">1</td>
+                                            <td align="center">-</td>
+                                                                                    </tr>
+                                                                                                                    <tr>
+                                            <td align="center">HT 06 TR 12</td>
+                                            <td align="center">50 Ton</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                        <td align="center">0</td>
+                                            <td align="center">0</td>
+                                            <td align="center">0</td>
+                                            <td align="center">1</td>
+                                            <td align="center">-</td>
+                                                                                    </tr>
+                                                                                                                    <tr>
+                                            <td align="center">PLD 120</td>
+                                            <td align="center">2.8 M<sup>3</sup></td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                        <td align="center">0</td>
+                                            <td align="center">0</td>
+                                            <td align="center">0</td>
+                                            <td align="center">1</td>
+                                            <td align="center">-</td>
+                                                                                    </tr>
+                                                                                                                    <tr>
+                                            <td align="center">TMC 01</td>
+                                            <td align="center">10 Ton</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                                                                            <td align="center">0</td>
+                                                                                        <td align="center">0</td>
+                                            <td align="center">0</td>
+                                            <td align="center">0</td>
+                                            <td align="center">1</td>
+                                            <td align="center">-</td>
+                                                                                    </tr>
+                                                                    </tbody>
+                                <tfoot>
+                                    <tr>
+                                        <td align="center" colspan="2">Jumlah</td>
+                                                                                    <td align="center">0</td>
+                                                                                    <td align="center">0</td>
+                                                                                    <td align="center">0</td>
+                                                                                    <td align="center">0</td>
+                                                                                    <td align="center">0</td>
+                                                                                    <td align="center">0</td>
+                                                                                    <td align="center">0</td>
+                                                                                    <td align="center">0</td>
+                                                                                    <td align="center">2</td>
+                                                                                    <td align="center">2</td>
+                                                                                <td align="center">4</td>
+                                        <td align="center">0</td>
+                                        <td align="center">0</td>
+                                        <td align="center">23</td>
+                                        <td align="center">-</td>
+                                    </tr>
+                                </tfoot>
+    </table>
+  </body>
+</html>
